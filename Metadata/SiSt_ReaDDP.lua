@@ -1,8 +1,9 @@
 --[[
  * ReaScript Name: ReaDDP
  * Author: sinfricia
- * Version: 1.0
- * About: DDP data manager and marker generator. Awesome!
+ * Version: 0.7
+ * About:
+ *   DDP data manager and marker generator.
 --]]
 
 
@@ -10,6 +11,7 @@
 local r = reaper
 package.path = r.GetResourcePath() .. '/Scripts/rtk/1/?.lua'
 local rtk = require('rtk')
+rtk.add_image_search_path(rtk.script_path, rtk.theme.iconstyle)
 local log = rtk.log
 log.level = log.DEBUG
 
@@ -42,10 +44,11 @@ local entrySpacing = 1
 local windowMargin = 10
 
 rtk.set_theme_overrides({
-  entry_placeholder = {255,255,255,0.2},
-  entry_font ={'Calibri', 16},
-  entry_border_focused  ={255,255,255,0.7},
-  entry_border_hover ={255,255,255,0.3},
+  entry_placeholder = {255,255,255,0.1},
+  entry_font = {'Calibri', 16},
+  entry_border_focused  = {255,255,255,0.7},
+  entry_border_hover = {255,255,255,0.3},
+  heading_font = {'Calibri', 20},
 })
 
 ------------------------
@@ -420,7 +423,7 @@ end
 function buildGui(source)
 
   ---- WINDOW SECTION ----
-  local w = rtk.Window{title='ReaDDP', w=100, h=100, resizable=true}
+  local w = rtk.Window{title='ReaDDP', w=100, h=100, resizable=false, borderless='true'}
 
   w.onkeypress = function(self, event)
     if event.keycode == rtk.keycodes.ESCAPE then
@@ -433,37 +436,36 @@ function buildGui(source)
     storeWpos(w)
   end
 
+  w:add(rtk.ImageBox{'ddp_logo', scale=0.08, tmargin=200, rmargin=70, position='fixed',}, {halign='right', valign='top'})
   local box = rtk.VBox{margin={30, 10}, spacing=5}
-  local vp = w:add(rtk.Viewport{box, vscrollbar='always', scrollbar_size=5})
+  local vp = w:add(rtk.Viewport{box, vscrollbar='always', scrollbar_size=5, padding='0 20 0 25'})
 
 
   ---- ALBUM SECTION ----
-  local albumHeading = box:add(rtk.Heading{'ALBUM METADATA', bmargin=15}, {halign='center'})
-  local albumBox = box:add(rtk.HBox({lmargin=30, spacing=entrySpacing}))
-
-  ---- ALBUM COPY BOXES ----
-  local copyBoxAlbum = box:add(rtk.HBox({lmargin=30, bmargin=20,spacing=140}))
+  local albumHeading = box:add(rtk.Heading{'ALBUM METADATA', bmargin=40, bborder={{255,255,255,0.8}, 2}}, {fillw=true, halign='center'})
+  local albumBox = box:add(rtk.HBox({lmargin=20, bmargin=15, spacing=entrySpacing}))
   local copyButtonsAlbum = {}
-  for j = 1, #albumDataFields do
-    if albumDataFields[j]=='PERFORMER' or albumDataFields[j]=='SONGWRITER' or 
-       albumDataFields[j]=='COMPOSER'  or albumDataFields[j]=='ARRANGER' then
-      copyButtonsAlbum[j] = copyBoxAlbum:add(rtk.Button{"copy", flat=true, fontsize=12})
-      copyButtonsAlbum[j].onclick = function()
-        copyDataToAllEntrys(j, 'album')
-      end 
-    else
-      copyBoxAlbum:add(rtk.Spacer{w=30})
-    end
-  end
   
   --draw and fill album entry widgets
   for i = 1, #albumDataFields do
     albumData[i] = albumBox:add(rtk.Entry{placeholder=albumDataFields[i], textwidth=13}) 
-
+    albumBox:add(rtk.Text{albumDataFields[i], fontsize=16, color={255,255,255,0.6}, position='absolute', margin='-21 0 0 -160'})
+    
     if albumDataFields[i] == 'EAN' then
       albumData[i].onchange = function()
         eanCheck(albumData[i])
       end
+    elseif albumDataFields[i]=='PERFORMER' or albumDataFields[i]=='SONGWRITER' or 
+      albumDataFields[i]=='COMPOSER'  or albumDataFields[i]=='ARRANGER' then
+      copyButtonsAlbum[i] = albumBox:add(rtk.Button{"copy", w=30, h=20,flat=true, fontsize=12, position='absolute', margin='21 0 0 -35', padding=4, halign='center'})
+      
+
+      copyButtonsAlbum[i].onclick = function()
+        copyDataToAllEntrys(i, 'album')
+      end 
+      albumData[i].onchange = function()
+        cdTextCheck(albumData[i])
+      end 
     else
       albumData[i].onchange = function()
         cdTextCheck(albumData[i])
@@ -472,17 +474,25 @@ function buildGui(source)
   end
 
   ---- TRACK SECTION ----
-  local trackHeading = box:add(rtk.Heading{'TRACK METADATA', bmargin=15}, {halign='center'})
-
+  local trackHeading = box:add(rtk.Heading{'TRACK METADATA', bmargin=40, bborder={{255,255,255,0.8}, 2}}, {fillw=true, halign='center'})
+  local copyButtonsTracks = {}
   --draw and track entry widgets
   for i = 0, DDPTrackCount-1 do
 
-    local trackBox = box:add(rtk.HBox({lmargin=10, spacing=entrySpacing}))
+    trackBox = box:add(rtk.HBox({spacing=entrySpacing}))
     local trNumber = trackBox:add(rtk.Text{tostring(i+1), tpadding=2, margin={0, 10, 0, 0}})
     
     for j = 1, #trackDataFields do 
       trackData[i][j] = trackBox:add(rtk.Entry{placeholder=trackDataFields[j], textwidth=13})
-      
+
+      if i == 1 then
+        trackBox:add(rtk.Text{trackDataFields[j], fontsize=16, color={255,255,255,0.6}, position='absolute', margin='-52 0 0 -160'})
+        copyButtonsTracks[j] = trackBox:add(rtk.Button{"copy", w=30, h=20,flat=true, fontsize=12, position='absolute', margin='-52 0 0 -35', padding=4, halign='center'})
+        copyButtonsTracks[j].onclick = function()
+          copyDataToAllEntrys(j, 'tracks')
+        end 
+      end
+
       if trackDataFields[j] == 'ISRC' then
         trackData[i][j].onchange = function(event)
           isrcCheck(trackData[i][j])
@@ -499,14 +509,13 @@ function buildGui(source)
   local copyBoxTracks = box:add(rtk.HBox({lmargin=30, spacing=140}))
   local copyButtonsTracks = {}
   for j = 1, #trackDataFields do
-    copyButtonsTracks[j] = copyBoxTracks:add(rtk.Button{"copy", flat=true, fontsize=12})
-    copyButtonsTracks[j].onclick = function()
-      copyDataToAllEntrys(j, 'tracks')
-    end 
+
   end
 
   ---- MENU SECTION ----
-  local menuBox = box:add(rtk.HBox({margin=30, spacing=40}))
+  local menuBox = box:add(rtk.HBox({margin='30 0 10 0', spacing=30}))
+
+  menuBox:add(rtk.Spacer{w=0.71})
 
   local sourceMenu = menuBox:add(rtk.OptionMenu{
     menu={
@@ -514,7 +523,8 @@ function buildGui(source)
       {'Regions', id='regions'},
       {'Tracks', id='tracks'},
     },
-  })
+    fontsize=13, h=25,
+  }, {valign='center'})
   
   sourceMenu:select(source)
   sourceMenu.onselect = function()
@@ -536,7 +546,7 @@ function buildGui(source)
     createDDPMarkers()
   end
 
-  local clearButton = menuBox:add(rtk.Button{"clear", fontsize=12},{valign='center'})
+  local clearButton = menuBox:add(rtk.Button{"clear", fontsize=13},{valign='center'})
   clearButton.onclick = function()
     buildClearPopup()
   end
