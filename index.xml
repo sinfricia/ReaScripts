@@ -25,9 +25,6 @@
 }
 ]]></description>
       </metadata>
-      <version name="1.0" author="sinfricia" time="2022-07-28T17:33:10Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/b7ef7ee613f6badfa7392b33bb41999145780f22/Metadata/SiSt_ReaDDP.lua</source>
-      </version>
       <version name="0.7" author="sinfricia" time="2022-07-28T20:14:55Z">
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/36e03e539348493b63e23e9836f7bdf1ec4fca39/Metadata/SiSt_ReaDDP.lua</source>
       </version>
