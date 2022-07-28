@@ -3,7 +3,7 @@
  * Author: sinfricia
  * Version: 1.0
  * About:
- *   DDP data manager and marker generator.
+ *   DDP data manager and marker generator. Awesome!
 --]]
 
 
