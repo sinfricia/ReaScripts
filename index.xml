@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="36fb824cb43d242409b86febd808e2504a5adf12">
+<index version="1" name="SiSt Scripts" commit="f3b11498ed1d5c257012d7a832e5e5d39af7a628">
+  <category name="Metadata">
+    <reapack name="SiSt_ReaDDP.lua" type="script" desc="ReaDDP">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Utility to create DDP markers with a very basic UI.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="sinfricia" time="2022-07-28T16:37:40Z">
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/f3b11498ed1d5c257012d7a832e5e5d39af7a628/Metadata/SiSt_ReaDDP.lua</source>
+      </version>
+    </reapack>
+  </category>
   <metadata>
     <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
