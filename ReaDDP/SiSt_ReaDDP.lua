@@ -1,4 +1,10 @@
-
+--[[
+ * ReaScript Name: ReaDDP
+ * Author: sinfricia
+ * Version: 1.0
+ * About:
+ *   DDP data manager and marker generator.
+--]]
 
 
 ---- CONFIG STUFF ----
