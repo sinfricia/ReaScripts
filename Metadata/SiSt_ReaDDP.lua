@@ -3,8 +3,7 @@
 -- @author sinfricia
 -- @version 1.0
 -- @about
-
-    Utility to create DDP markers with a very basic UI.
+        Utility to create DDP markers with a very basic UI.
 ]]--
 
 local albumMetadataFields = "Album Name,Album Performer,Album Composer,EAN,ISRC of first track,Language,Track Review (0/1), Pregap marker (0/1),extrawidth=200,separator=^"
