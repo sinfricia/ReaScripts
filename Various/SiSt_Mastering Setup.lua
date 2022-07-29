@@ -1,4 +1,3 @@
-
 --[[
  *  Description: Mastering setup (space items ans create regions)
  *  Author: sinfricia
