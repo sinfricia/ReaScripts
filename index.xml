@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="36e03e539348493b63e23e9836f7bdf1ec4fca39">
+<index version="1" name="SiSt Scripts" commit="91d345f210b8ba0dc173c124c735da18708daa09">
   <category name="Metadata">
     <reapack name="SiSt_Create DDP markers from regions.lua" type="script" desc="Create DDP markers from regions">
       <metadata>
@@ -13,20 +13,6 @@
       </metadata>
       <version name="1.0" author="sinfricia" time="2022-07-28T18:08:44Z">
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/4cbedb131651aec1f2e9204a24263909fd17dd0a/Metadata/SiSt_Create%20DDP%20markers%20from%20regions.lua</source>
-      </version>
-    </reapack>
-    <reapack name="SiSt_ReaDDP.lua" type="script" desc="ReaDDP">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 DDP data manager and marker generator.\par}
-}
-]]></description>
-      </metadata>
-      <version name="0.7" author="sinfricia" time="2022-07-28T20:14:55Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/36e03e539348493b63e23e9836f7bdf1ec4fca39/Metadata/SiSt_ReaDDP.lua</source>
       </version>
     </reapack>
   </category>
