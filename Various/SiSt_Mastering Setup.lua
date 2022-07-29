@@ -4,7 +4,6 @@
  *  Version: 1.0
  *  Screenshots: https://imgur.com/mwL56Hr
  *  Links: http://forum.cockos.com/showthread.php?t=169127
- *  Provides: 'SiSt_Mastering setup.lua'
  *  About:
  *    Generates DDP markers from user inputs. Track Names and marker positions are taken from regions prefixed with '#'.
  *  Changelog:
