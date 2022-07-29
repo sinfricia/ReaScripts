@@ -1,19 +1,25 @@
 --[[
--- @description ReaDDP
--- @author sinfricia
--- @version 1.0
--- @about
+ * ReaScript Name: Create DDP markers from regions
+ * Author: sinfricia
+ * Version: 1.1
+ * Screenshots: https://imgur.com/mwL56Hr
+ * Links: http://forum.cockos.com/showthread.php?t=169127
+ * Provides: 'SiSt_Mastering setup.lua'
+ * About:
+ *    Generates DDP markers from user inputs. Track Names and marker positions are taken from regions prefixed with '#'.
+ * Changelog:
+ *  v1.1 (2022-07-29):
+ *    - Fixed typo in 'performer' field
+ *    - metadata markers now start at index 101, pregap markers at 501
+--]]
 
-   Utility to create DDP markers with a very basic UI.
-]]--
-
-local albumMetadataFields = "Album Name,Album Performer,Album Composer,EAN,ISRC of first track,Language,Track Review (0/1), Pregap marker (0/1),extrawidth=200,separator=^"
-local albumDataCount = 8
+local albumMetadataFields = "Album Name,Album Performer,Album Composer,EAN,ISRC start,Track Review (0/1), Pregap marker (0/1),extrawidth=200,separator=^"
+local albumDataCount = 7
 local trackMetadataFields = "Track,Performer,Composer,ISRC,extrawidth=200,separator=^"
 local trackDataCount = 4
 local doTrackReview = "0"
 local makePregapMarker = "0"
-local defaultInputs_csv = "^^^^^^" .. doTrackReview.."^"..makePregapMarker
+local defaultInputs_csv = "^^^^^" .. doTrackReview.."^"..makePregapMarker
 local temp
 local Album = {}
 local Track = {}
@@ -33,7 +39,6 @@ function Album:create()
    alb.composer = "" 
    alb.ean = "" 
    alb.isrcStart = ""
-   alb.Language = ""
    alb.metadataMarker = ""
    alb.trackCount = 0
    return alb
@@ -85,7 +90,7 @@ function createAlbumFromUserInput(defaultInputs_csv)
   
   
   local a = Album:create()
-  a.name, a.performer, a.composer, a.ean, a.isrcStart, a.language, doTrackReview, makePregapMarker = albumMetadata_csv:match("([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)")
+  a.name, a.performer, a.composer, a.ean, a.isrcStart, doTrackReview, makePregapMarker = albumMetadata_csv:match("([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)%^([^%^]*)")
   
   ------------------ sanity checking ------------------
   if a.name == nil  then
@@ -120,7 +125,6 @@ function createTrackObjects(album)
     
     if isrgn == true and markerName:sub(1, 1) == "#" then
       tracks[album.trackCount] = Track:create(markerName:sub(2, -1), album.performer, album.composer, album.isrcStart, album.trackCount, markerPos, rgnEnd)
-      reaper.SetProjectMarker(index, isrgn, markerPos, rgnEnd, markerName:sub(2))
       album.trackCount = album.trackCount + 1
     end
   end
@@ -158,15 +162,15 @@ end
 
 function createDDPMarkers(album, tracks)
 
-  album.metadataMarker = "@ALBUM="..album.name.."|PERFORMER="..album.performer.."|COMPOSER="..album.composer.."|EAN="..album.ean.."|LANGUAGE="..album.language
+  album.metadataMarker = "@".."Title="..album.name.."|Performer="..album.performer.."|COMPOSER="..album.composer.."|EAN="..album.ean
   reaper.AddProjectMarker(0, 0, tracks[album.trackCount-1].finish, 0, album.metadataMarker, 999)
   reaper.AddProjectMarker(0, 0, 0, 0, "!", 0)
   
   for i = 0, album.trackCount-1 do
-    tracks[i].metadataMarker = "#TITLE="..tracks[i].name.."|PERFORMER=".. tracks[i].performer.."|COMPOSER=".. tracks[i].composer.."|ISRC="..tracks[i].isrc
-    reaper.AddProjectMarker(0, 0, tracks[i].start, 0, tracks[i].metadataMarker, i+1)
+    tracks[i].metadataMarker = "#".."Title="..tracks[i].name.."|Performer=".. tracks[i].performer.."|COMPOSER=".. tracks[i].composer.."|ISRC="..tracks[i].isrc
+    reaper.AddProjectMarker(0, 0, tracks[i].start, 0, tracks[i].metadataMarker, i+101)
     if makePregapMarker == "1" then 
-      reaper.AddProjectMarker(0, 0, tracks[i].finish, 0, "!", i+101)
+      reaper.AddProjectMarker(0, 0, tracks[i].finish, 0, "!", i+501)
     end
   end
 end
