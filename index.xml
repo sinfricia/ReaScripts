@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="7318c651613fd532039e98d454434b27b34f8776">
+<index version="1" name="SiSt Scripts" commit="273157a72e37f988fb5646d7bf183674f309b093">
   <category name="Metadata">
     <reapack name="SiSt_Create DDP markers from regions.lua" type="script" desc="Create DDP markers from regions">
       <metadata>
@@ -25,18 +25,21 @@
     </reapack>
   </category>
   <category name="Metadata Manager">
-    <reapack name="SiSt_Metadata Manager.lua" type="script" desc="MetadataManager">
+    <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 DDP data manager and marker generator.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Sono to come...\par}
 }
 ]]></description>
       </metadata>
       <version name="0.8.0" author="sinfricia" time="2022-09-22T15:59:18Z">
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/7318c651613fd532039e98d454434b27b34f8776/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+      </version>
+      <version name="0.8.1" author="sinfricia" time="2022-09-22T16:06:39Z">
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/273157a72e37f988fb5646d7bf183674f309b093/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
       </version>
     </reapack>
   </category>
