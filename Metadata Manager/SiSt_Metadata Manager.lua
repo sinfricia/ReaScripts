@@ -1,14 +1,14 @@
 --[[
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.8.3
+-- @version 0.8.4
 -- @about
---   Sone to come...
--- @provides [main] .
---		logo_thumbnail.png
---		logo_what.png
---		logo.png
--- Changelog:
+--  Soon to come...
+-- @provides
+--  logo_thumbnail.png
+--	 logo_what.png
+--	 logo.png
+-- @Changelog
 --  
 --  
 --  
