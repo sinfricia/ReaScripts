@@ -1,6 +1,6 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.8.8
+-- @version 0.8.0
 -- @about Soon to come...
 -- @provides
 --  logo.png
