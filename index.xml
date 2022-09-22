@@ -1,58 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="02338a4f0cc9f8301104cccb48c084e9e23c61d5">
-  <category name="Metadata Manager">
-    <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 Soon to come...\par}
-}
-]]></description>
-      </metadata>
-      <version name="0.8.0" author="sinfricia" time="2022-09-22T15:59:18Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/7318c651613fd532039e98d454434b27b34f8776/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-      </version>
-      <version name="0.8.1" author="sinfricia" time="2022-09-22T16:06:39Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/273157a72e37f988fb5646d7bf183674f309b093/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-      </version>
-      <version name="0.8.2" author="sinfricia" time="2022-09-22T16:13:27Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/a20bf18b5ccca737a9c072ea19c62ca83d3475af/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-      </version>
-      <version name="0.8.3" author="sinfricia" time="2022-09-22T16:19:47Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/2a9de8d9cfcc08b0a3d6beb4a6129239b1590b93/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-      </version>
-      <version name="0.8.4" author="sinfricia" time="2022-09-22T22:50:06Z">
-        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/e9faabec52607fbabc4b8eac21b92afe75d942d9/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/e9faabec52607fbabc4b8eac21b92afe75d942d9/Metadata%20Manager/logo_thumbnail.png</source>
-      </version>
-      <version name="0.8.5" author="sinfricia" time="2022-09-22T22:56:44Z">
-        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/logo.png</source>
-        <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/logo_thumbnail.png</source>
-      </version>
-      <version name="0.8.6" author="sinfricia" time="2022-09-22T23:01:56Z">
-        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/82c392a1125a14f4f882e36d9b663fc79be17ac8/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/82c392a1125a14f4f882e36d9b663fc79be17ac8/Metadata%20Manager/logo.png</source>
-      </version>
-      <version name="0.8.7" author="sinfricia" time="2022-09-22T23:03:27Z">
-        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/13eaa9b447908f4a8d2fce4f45c5835af68663ff/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/13eaa9b447908f4a8d2fce4f45c5835af68663ff/Metadata%20Manager/logo.png</source>
-      </version>
-      <version name="0.8.8" author="sinfricia" time="2022-09-22T23:13:12Z">
-        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/a76d819c91677553c96f7d4e89ede32ff14b9ca8/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/a76d819c91677553c96f7d4e89ede32ff14b9ca8/Metadata%20Manager/logo.png</source>
-        <source file="logo_what.png">https://github.com/sinfricia/ReaScripts/raw/a76d819c91677553c96f7d4e89ede32ff14b9ca8/Metadata%20Manager/logo_what.png</source>
-        <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/a76d819c91677553c96f7d4e89ede32ff14b9ca8/Metadata%20Manager/logo_thumbnail.png</source>
-      </version>
-    </reapack>
-  </category>
+<index version="1" name="SiSt Scripts" commit="1978fe0a57a94bef4c58eabe33e24f9ae9c89e26">
   <category name="Various">
     <reapack name="SiSt_Mastering Setup.lua" type="script" desc="Mastering setup (space items ans create regions)">
       <metadata>
