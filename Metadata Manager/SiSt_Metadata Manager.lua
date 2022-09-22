@@ -3,13 +3,13 @@
 -- @author sinfricia
 -- @version 0.8.4
 -- @about
---  Soon to come...
+--   Soon to come...
 -- @provides
---  logo_thumbnail.png
---	 logo_what.png
---	 logo.png
--- @Changelog
---  
+--   logo_thumbnail.png
+--	  logo_what.png
+--	  logo.png
+-- @changelog
+--   Updated ReaPack Header to hopefully include images.
 --  
 --  
 --]]
