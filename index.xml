@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="e9faabec52607fbabc4b8eac21b92afe75d942d9">
+<index version="1" name="SiSt Scripts" commit="94e221a9b0bc1d74199486abfbf0aab197703bf0">
   <category name="Metadata">
     <reapack name="SiSt_Create DDP markers from regions.lua" type="script" desc="Create DDP markers from regions">
       <metadata>
@@ -51,6 +51,12 @@
         <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/e9faabec52607fbabc4b8eac21b92afe75d942d9/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
         <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/e9faabec52607fbabc4b8eac21b92afe75d942d9/Metadata%20Manager/logo_thumbnail.png</source>
+      </version>
+      <version name="0.8.5" author="sinfricia" time="2022-09-22T22:56:44Z">
+        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/logo.png</source>
+        <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/94e221a9b0bc1d74199486abfbf0aab197703bf0/Metadata%20Manager/logo_thumbnail.png</source>
       </version>
     </reapack>
   </category>
