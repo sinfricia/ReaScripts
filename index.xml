@@ -1,29 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="a76d819c91677553c96f7d4e89ede32ff14b9ca8">
-  <category name="Metadata">
-    <reapack name="SiSt_Create DDP markers from regions.lua" type="script" desc="Create DDP markers from regions">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 Generates DDP markers from user inputs. Track Names and marker positions are taken from regions prefixed with '#'.\par}
-}
-]]></description>
-        <link rel="website">http://forum.cockos.com/showthread.php?t=169127</link>
-        <link rel="screenshot">https://imgur.com/mwL56Hr</link>
-      </metadata>
-      <version name="1.0" author="sinfricia" time="2022-07-28T18:08:44Z">
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/4cbedb131651aec1f2e9204a24263909fd17dd0a/Metadata/SiSt_Create%20DDP%20markers%20from%20regions.lua</source>
-      </version>
-      <version name="1.1" author="sinfricia" time="2022-07-29T16:16:08Z">
-        <changelog><![CDATA[v1.1 (2022-07-29):
-  - Fixed typo in 'performer' field
-  - metadata markers now start at index 101, pregap markers at 501]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/a8ac0fdc821c7e84eaa10f75561b35fa8472f49f/Metadata/SiSt_Create%20DDP%20markers%20from%20regions.lua</source>
-      </version>
-    </reapack>
-  </category>
+<index version="1" name="SiSt Scripts" commit="02338a4f0cc9f8301104cccb48c084e9e23c61d5">
   <category name="Metadata Manager">
     <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
       <metadata>
