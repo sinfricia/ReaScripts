@@ -1,17 +1,17 @@
 --[[
- * ReaScript Name: Metadata Manager
- * Author: sinfricia
- * Version: 0.8.2
- * About:
- *    Sono to come...
- * Provides:
- *		logo_thumbnail.png
- *		logo_what.png
- *		logo.png
- * Changelog:
- *  
- *  
- *  
+-- @description Metadata Manager
+-- @author sinfricia
+-- @version 0.8.3
+-- @about
+--   Sone to come...
+-- @provides [main] .
+--		logo_thumbnail.png
+--		logo_what.png
+--		logo.png
+-- Changelog:
+--  
+--  
+--  
 --]]
 
 
@@ -2046,7 +2046,7 @@ function init()
 		log.level = log.DEBUG
 
 		rtk.tooltip_delay = 150
-		rtk.scale.user = 1
+		rtk.scale.user = 1.0
 		if r.HasExtState(Script_Name, 'user_scale') then
 			rtk.scale.user = r.GetExtState(Script_Name, 'user_scale')
 		end
