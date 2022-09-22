@@ -1,10 +1,14 @@
 --[[
-	* ReaScript Name: MetadataManager
-	* Author: sinfricia
-	* Version: 0.8.0
-	* About:
-	*   DDP data manager and marker generator.
-	--]]
+ * ReaScript Name: Metadata Manager
+ * Author: sinfricia
+ * Version: 0.8.1
+ * About:
+ *    Sono to come...
+ * Changelog:
+ *  
+ *  
+ *  
+--]]
 
 
 ---- CONFIG STUFF ----
