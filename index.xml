@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="273157a72e37f988fb5646d7bf183674f309b093">
+<index version="1" name="SiSt Scripts" commit="a20bf18b5ccca737a9c072ea19c62ca83d3475af">
   <category name="Metadata">
     <reapack name="SiSt_Create DDP markers from regions.lua" type="script" desc="Create DDP markers from regions">
       <metadata>
@@ -40,6 +40,9 @@
       </version>
       <version name="0.8.1" author="sinfricia" time="2022-09-22T16:06:39Z">
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/273157a72e37f988fb5646d7bf183674f309b093/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+      </version>
+      <version name="0.8.2" author="sinfricia" time="2022-09-22T16:13:27Z">
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/a20bf18b5ccca737a9c072ea19c62ca83d3475af/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
       </version>
     </reapack>
   </category>
