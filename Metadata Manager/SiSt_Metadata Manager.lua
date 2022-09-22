@@ -1,18 +1,14 @@
---[[
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.8.4
+-- @version 0.8.5
 -- @about
 --   Soon to come...
 -- @provides
---   logo_thumbnail.png
---	  logo_what.png
---	  logo.png
+--  logo.png
+--  logo_thumbnail.png
+--	 logo_what.png
 -- @changelog
 --   Updated ReaPack Header to hopefully include images.
---  
---  
---]]
 
 
 ---- CONFIG STUFF ----
