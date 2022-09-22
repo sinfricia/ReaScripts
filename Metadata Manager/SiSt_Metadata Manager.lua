@@ -1,9 +1,13 @@
 --[[
  * ReaScript Name: Metadata Manager
  * Author: sinfricia
- * Version: 0.8.1
+ * Version: 0.8.2
  * About:
  *    Sono to come...
+ * Provides:
+ *		logo_thumbnail.png
+ *		logo_what.png
+ *		logo.png
  * Changelog:
  *  
  *  
