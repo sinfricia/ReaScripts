@@ -1,6 +1,6 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.8.0
+-- @version 0.8.1
 -- @about Soon to come...
 -- @provides
 --  logo.png
@@ -1671,7 +1671,7 @@ function buildGui()
 	end
 
 	b_clear.onclick = function(_, event)
-		if event.shift and event.ctrl then
+		if event.alt then
 			clearProjEntries()
 			clearObjEntries()
 			local i = 0
@@ -1696,7 +1696,7 @@ function buildGui()
 			rtk.quit()
 		end
 
-		local shift = event
+		local shift = event.shift
 		local popupBox = rtk.Container {}
 		local popup = rtk.Popup {
 			child = popupBox,
