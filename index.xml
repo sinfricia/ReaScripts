@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="1978fe0a57a94bef4c58eabe33e24f9ae9c89e26">
+<index version="1" name="SiSt Scripts" commit="83a246958c29fde0774b5c8ebd553d6747c854ed">
+  <category name="Metadata Manager">
+    <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Soon to come...\par}
+}
+]]></description>
+      </metadata>
+      <version name="0.8.0" author="sinfricia" time="2022-09-22T23:55:21Z">
+        <changelog><![CDATA[Updated ReaPack Header to hopefully include images.]]></changelog>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/83a246958c29fde0774b5c8ebd553d6747c854ed/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+        <source file="logo.png">https://github.com/sinfricia/ReaScripts/raw/83a246958c29fde0774b5c8ebd553d6747c854ed/Metadata%20Manager/logo.png</source>
+        <source file="logo_what.png">https://github.com/sinfricia/ReaScripts/raw/83a246958c29fde0774b5c8ebd553d6747c854ed/Metadata%20Manager/logo_what.png</source>
+        <source file="logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/83a246958c29fde0774b5c8ebd553d6747c854ed/Metadata%20Manager/logo_thumbnail.png</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Various">
     <reapack name="SiSt_Mastering Setup.lua" type="script" desc="Mastering setup (space items ans create regions)">
       <metadata>
