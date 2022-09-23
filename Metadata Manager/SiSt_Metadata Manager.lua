@@ -1,12 +1,12 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.8.1
+-- @version 0.8.11
 -- @about Soon to come...
 -- @provides
 --  logo.png
 --  logo_what.png
 --  logo_thumbnail.png
--- @changelog Updated ReaPack Header to hopefully include images.
+-- @changelog Fixed bug where clearing album entries would clear all data.
 
 
 ---- CONFIG STUFF ----
