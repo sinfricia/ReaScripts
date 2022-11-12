@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="d17597e38db1c5306c50c5460be3fba2d34a717a">
+<index version="1" name="SiSt Scripts" commit="15eb4e079d84e9ae37458c9d053de62185e92064">
   <category name="Metadata Manager">
     <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
       <metadata>
@@ -9,11 +9,6 @@
 
 {\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 METADATA MANAGER\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs28 Key features:\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Clear and easy to use interface to enter Metadata\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Multiple possible workflows to create DDP markers\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Elaborate error checking in regards to the CD Red Book standard\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Responsive UI\sa180\par}
 }
 ]]></description>
       </metadata>
@@ -48,6 +43,15 @@
         <source file="img/logo.png">https://github.com/sinfricia/ReaScripts/raw/d17597e38db1c5306c50c5460be3fba2d34a717a/Metadata%20Manager/img/logo.png</source>
         <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/d17597e38db1c5306c50c5460be3fba2d34a717a/Metadata%20Manager/img/logo_what.png</source>
         <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/d17597e38db1c5306c50c5460be3fba2d34a717a/Metadata%20Manager/img/logo_thumbnail.png</source>
+      </version>
+      <version name="0.9.1" author="sinfricia" time="2022-11-12T12:12:28Z">
+        <changelog><![CDATA[- Updated tooltips
+- Improved pregap field apperance
+- Changed album marker number to 900 for better compatibility with ReaClassical]]></changelog>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+        <source file="img/logo.png">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/img/logo.png</source>
+        <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/img/logo_what.png</source>
+        <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/img/logo_thumbnail.png</source>
       </version>
     </reapack>
   </category>
