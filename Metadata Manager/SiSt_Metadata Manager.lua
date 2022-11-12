@@ -1,10 +1,10 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.9.1
+-- @version 0.9.2
 -- @about
 --  # METADATA MANAGER
 --  This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.
---	 Key features:
+--  Key features:
 --  - Clear and easy to use interface to enter Metadata
 --  - Multiple possible workflows to create DDP markers
 --  - Elaborate error checking in regards to the CD Red Book standard
@@ -14,13 +14,19 @@
 --  img/logo_what.png
 --  img/logo_thumbnail.png
 -- @changelog
---  - Updated tooltips
---  - Improved pregap field apperance
---  - Changed album marker number to 900 for better compatibility with ReaClassical
+--  - Reworked tooltips apperance
+--  - Improved tooltips content
+--  - Added version number to UI
+--  - Added error checking for language field
+--  - Improved error checking for people fields
+--  - Script window now scales properly on UI scale change
+--  - Added keyboard shortcut (ctrl + up/down arrow) to scale UI
+--  - Fixed various crashes and bugs
 
 
 ---- CONFIG STUFF ----
 local Script_Name = 'Metadata Manager'
+local Script_Version = 'v0.9.2'
 local r = reaper
 r.ClearConsole()
 local entrypath = ({ r.get_action_context() })[2]:match('^.+[\\//]')
@@ -28,6 +34,9 @@ package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;',
    r.GetResourcePath(), entrypath)
 local log
 local rtk
+-- For some reason, if more than ca. 140 objects are loaded over a session of MM being active, rtk decides to crash.
+-- To crash more gracefully this variable keeps track of the object count and quits the script when the marker destination is changed and a limit is reached.
+local stupid_bug_count = 0
 
 local function msg(msg) r.ShowConsoleMsg(tostring(msg) .. "\n") end
 
@@ -112,11 +121,25 @@ if r.GetProjExtState(0, Script_Name, 'markers_created') then
    markers_created = stringtoboolean(markers_created)
 end
 
+local languages = {
+   'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Assamese', 'Azerbaijani', 'Bambora', 'Basque', 'Bengali', 'Bielorussian',
+   'Breton', 'Bulgarian', 'Burmese', 'Catalan', 'Chinese', 'Churash', 'Croatian', 'Czech', 'Danish', 'Dari', 'Dutch',
+   'English', 'Esperanto', 'Estonian', 'Faroese', 'Finnish', 'Flemish', 'French', 'Frisian', 'Fulani', 'Gaelic',
+   'Galician', 'Georgian', 'German', 'Greek', 'Gujurati', 'Gurani', 'Hausa', 'Hebrew', 'Hindi', 'Hungarian', 'Icelandic',
+   'Indonesian', 'Irish', 'Italian', 'Japanese', 'Kannada', 'Kazakh', 'Khmer', 'Korean', 'Laotian', 'Lappish', 'Latin',
+   'Latvian', 'Lithuanian', 'Luxembourgian', 'Macedonian', 'Malagasay', 'Malaysian', 'Maltese', 'Marathi', 'Moldavian',
+   'Ndebele', 'Nepali', 'Norwegian', 'Occitan', 'Oriya', 'Papamiento', 'Persian', 'Polish', 'Portugese', 'Punjabi',
+   'Pushtu', 'Quechua', 'Romanian', 'Romansh', 'Russian', 'Ruthenian', 'Serbian', 'Serbo-croat', 'Shona', 'Sinhalese',
+   'Slovak', 'Slovenian', 'Somali', 'Spanish', 'SrananTongo', 'Swahili', 'Swedish', 'Tadzhik', 'Tamil', 'Tatar', 'Telugu',
+   'Thai', 'Turkish', 'Ukrainian', 'Urdu', 'Uzbek', 'Vietnamese', 'Wallon', 'Welsh', 'Zulu'
+}
+
 ----------------------------------
 ------ GUI VALUES ----------------
 local w
 
 -- SIZES
+local scale_change_factor = 1
 local LR_Margin = 25
 local TB_Margin = 20
 local Entry_Min_W = 70
@@ -155,75 +178,89 @@ local tips = {
    tips = [[
       When activated, hover over UI elements to get tooltips.
    ]],
-   TITLE = [[
-      Enter your title here. For track titles use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry to all entries.
-
-      If you use a character that's not allowed in the CD-Text standard the entry will light up red. Allowed CD-Text characters are:
-
+   COPY = [[
+      Use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry to all entries.
+   ]],
+   COPY_ISRC = [[
+      Use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry to all entries. 
+      ISRC codes will automatically be incremented by 1 for each track.
+   ]],
+   PROJ_TITLE = [[
+      Enter your album title here. If you use a character that's not allowed in the CD-Text standard the 
+      entry will light up red. Allowed CD-Text characters are:
+      !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+   ]],
+   OBJ_TITLE = [[
+      Enter your track title here. If you use a character that's not allowed in the CD-Text standard the 
+      entry will light up red. Allowed CD-Text characters are:
       !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
    ]],
    EAN = [[
-      Enter your 13 digit EAN number here. In this field only numbers are allowed.
-
-      If your number is not a valid EAN the entry wil light up red.
+      Enter your 13 digit EAN number here. If your number is not a valid EAN the entry will light up red.
+      See wikipedia.org/wiki/European_Article_Number for more info.
    ]],
    ISRC = [[
-      Enter your ISRC here. Use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry
-      to all entries with auto incrementing for each track.
-
-      If your number is not a valid ISRC the entry wil light up red.
+      Enter your ISRC here. If your number is not a valid ISRC the entry will light up red.
+      See isrc.ifpi.org for more info.
    ]],
-   PEOPLE = [[
-      Enter the people involved in creating your album here. If you specify a person for a track you also need to set the corresponding field in
-      the album section. Album entries will light up red to indicate this. For albums with different people in the same role you can for example use
-      'various' in the album field.
+   PROJ_PEOPLE = [[
+      Enter the people involved in creating your album here. If you specify a person for a track you also need 
+      to set the corresponding field in the album section. Album entries will light up red to indicate this. 
+      For albums with different people in the same role you can for example use 'various' in the album field.
 
-      Use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry to all entries.
+      If you use a character that's not allowed in the CD-Text standard the entry will also light up red. 
+      Allowed CD-Text characters are:
+      !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+   ]],
+   OBJ_PEOPLE = [[
+      Enter the people involved in creating your track here. If you specify a person for a track you also need 
+      to set the corresponding field in the album section. Album entries will light up red to indicate this. 
+      For albums with different people in the same role you can for example use 'various' in the album field.
 
-      If you use a character that's not allowed in the CD-Text standard the entry will also light up red. Allowed CD-Text characters are:
-
+      If you use a character that's not allowed in the CD-Text standard the entry will also light up red. 
+      Allowed CD-Text characters are:
       !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
    ]],
    GENRE = [[
-      Enter the genre of your album here.
-
-      If you use a character that's not allowed in the CD-Text standard the entry will also light up red. Allowed CD-Text characters are:
-
+      Enter the genre of your album here. If you use a character that's not allowed in the CD-Text standard the 
+      entry will light up red. Allowed CD-Text characters are:
       !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
    ]],
    LANGUAGE = [[
       Must be one of the following languages:
 
       LANGUAGES:
-      Albanian, Amharic, Arabic, Armenian, Assamese, Azerbaijani, Bambora, Basque, Bengali, Bielorussian, Breton, Bulgarian, Burmese, Catalan, Chinese, 
-      Churash, Croatian, Czech, Danish, Dari, Dutch, English, Esperanto, Estonian, Faroese, Finnish, Flemish, French, Frisian, Fulani, Gaelic, Galician, 
-      Georgian, German, Greek, Gujurati, Gurani, Hausa, Hebrew, Hindi, Hungarian, Icelandic, Indonesian, Irish, Italian, Japanese, Kannada, Kazakh, Khmer, 
-      Korean, Laotian, Lappish, Latin, Latvian, Lithuanian, Luxembourgian, Macedonian, Malagasay, Malaysian, Maltese, Marathi, Moldavian, Ndebele, Nepali, 
-      Norwegian, Occitan, Oriya, Papamiento, Persian, Polish, Portugese, Punjabi, Pushtu, Quechua, Romanian, Romansh, Russian, Ruthenian, Serbian, Serbo-croat, 
-      Shona, Sinhalese, Slovak, Slovenian, Somali, Spanish, SrananTongo, Swahili, Swedish, Tadzhik, Tamil, Tatar, Telugu, Thai, Turkish, Ukrainian, Urdu, Uzbek,
-      Vietnamese, Wallon, Welsh, Zulu
+      Albanian, Amharic, Arabic, Armenian, Assamese, Azerbaijani, Bambora, Basque, Bengali, Bielorussian, Breton, 
+      Bulgarian, Burmese, Catalan, Chinese, Churash, Croatian, Czech, Danish, Dari, Dutch, English, Esperanto, 
+      Estonian, Faroese, Finnish, Flemish, French, Frisian, Fulani, Gaelic, Galician, Georgian, German, Greek, 
+      Gujurati, Gurani, Hausa, Hebrew, Hindi, Hungarian, Icelandic, Indonesian, Irish, Italian, Japanese, Kannada, 
+      Kazakh, Khmer, Korean, Laotian, Lappish, Latin, Latvian, Lithuanian, Luxembourgian, Macedonian, Malagasay, 
+      Malaysian, Maltese, Marathi, Moldavian, Ndebele, Nepali, Norwegian, Occitan, Oriya, Papamiento, Persian, Polish, 
+      Portugese, Punjabi, Pushtu, Quechua, Romanian, Romansh, Russian, Ruthenian, Serbian, Serbo-croat, Shona, Sinhalese, 
+      Slovak, Slovenian, Somali, Spanish, SrananTongo, Swahili, Swedish, Tadzhik, Tamil, Tatar, Telugu, Thai, Turkish, 
+      Ukrainian, Urdu, Uzbek, Vietnamese, Wallon, Welsh, Zulu
    ]],
    PREGAP = [[
       Enter your pregap time here. If pregap is 0 no pregap marker will be created. For the first track the minimum pregap is 2 seconds.
    ]],
    dest_menu = [[
-      Metadata Manager (MM) provides several different workflows to get already existing data from and markers into your project. On first startup MM 
-      automatically imports all available data from your last set marker destination. After that if you change your marker destination
-      you will have to check the checkbox below if you want to overwrite existing data with data from the new destination.
+      Metadata Manager (MM) provides several different workflows to get already existing data from and markers into your project. On first use MM 
+      always imports track titles from your project. After that if you change your marker destination you will have to check the checkbox below if 
+      you want to reimport track titles from the new destination.
       
-      Once markers are created the marker destination is locked to the existing markers. 
-      If you want to change your marker destination again you need to first delete all metadata markers in your project. Use the clear function
-      or delete them manually and restart the script.
+
+      Once markers are created the marker destination is locked to the existing markers. If you want to change your marker destination again you need 
+      to first delete all metadata markers in your project. Use the clear function or delete them manually and restart the script.
 
       Items: 
       Track postions and names are imported from selected items. Data and pregap markers are created at the start of selected items, the album marker 
       at the end of the last selected item. 
-      Items only need to be selected when changing destination after that the script remebers your initial selection.
+      Items only need to be selected when changing destination after that the script remembers your initial selection.
 
       Tracks: 
       Track postions and names are imported from selected tracks. Data and pregap markers are created at the start of the first item in each track, 
       the album marker at the end of the last item in the last selected track.  
-      Tracks only need to be selected when changing destination after that the script remebers your selection.
+      Tracks only need to be selected when changing destination after that the script remembers your selection.
 
       Regions: 
       Track postions and names are imported from regions with names starting with '#'. Data markers are created at the start of these regions, the 
@@ -237,21 +274,21 @@ local tips = {
       If you have a marker named '=END' in your project your album marker will always be placed there.
    ]],
    cb_dest_import = [[
-      On first startup Metadata Manager (MM) automatically imports all track titles from your last set marker destination. After that if you change
-      your marker destination you will have to check the checkbox below if you want to overwrite existing titles wuth those from the new destination.
+      On first use MM always imports track titles from your project. After that if you change your marker destination you will have to check this 
+      checkbox if you want to reimport track titles from the new destination.
    ]],
    b_create = [[
-      Create: Creates DDP compatible Metadata markers in REAPER at the positions specified by the marker destination and with the data entered above.
+      Create: Creates DDP compatible Metadata markers in your project at the positions specified by the marker destination and with the data entered above.
 
 
-      Update: Once markers are created, you can't create any new markers but only update existing ones. If you want to remove a track from MM after you
-      already created markers, delete the marker manually in your project and restart the script. Be careful tough, as MM doesn't statically link
-      specific data to a certain marker, but rather to a track number. So if you have 5 tracks in your album and you delete the marker for track 3, 
-      your new track 3 will now contain all data from your old track 3.
-      If you want to create new markers you you need to first delete all metadata markers in your project. Use the clear function or delete them 
-      manually and restart the script.
+      Update: Once markers are created, you can't create any new markers but only update existing ones. If you want to remove a track from MM after you already 
+      created markers, delete the marker manually in your project and restart the script. Be careful tough, as MM doesn't statically link specific data to a certain 
+      marker, but rather to a track number. So if you have 5 tracks in your album and you delete the marker for track 3, your new track 3 will now contain all data 
+      from your old track 3.
+      If you want to create new markers you need to first delete all metadata markers in your project. Use the clear function or delete them manually and 
+      restart the script.
 
-      Shift + click makes the script think you never created markers (mainly useful for faster debugging).
+      Shift + click makes the script think you never created markers (mainly useful for debugging).
    ]],
    b_clear = [[
       Deletes various data.
@@ -260,12 +297,12 @@ local tips = {
 
       Tracks: Clears track metadata entry fields. This is not undoable!
 
-      Markers: Deletes all metadata markers (including pregap markers) from the active REAPER project. This is undoable.
+      Markers: Deletes all metadata markers (including pregap markers) from the active project. This is undoable.
 
       Shift + click to reset script to initial state.
    ]],
    user_scale = [[
-      Sets UI scaling.
+      Sets UI scaling. Keyboard shortcut: crtl + up/down arrow
    ]],
    logo = [[
       This is Metadata. And this is Manager. 
@@ -417,16 +454,19 @@ function getObjs()
       error("data_dest undefined while getting objects")
    end
 
-   if marker_end_pos then
+   if obj_count > 99 then
+      obj_count = 0
+      objs = {}
+      reaper.ShowMessageBox("Metadata Manager only supports up to 99 tracks. Please reduce your track count.",
+         Script_Name, 0)
+      return
+   end
+   if marker_end_pos and obj_count > 1 then
       objs[obj_count].stop = marker_end_pos
    end
-
-
    if dest_changed and obj_count < 1 then
-      reaper.ShowMessageBox(
-         "No tracks were found. This means you either haven't selected any items/tracks or haven't created any markers/regions with a '#' prefix (depending on your chosen marker destination)."
-         ,
-         Script_Name, 0)
+      reaper.ShowMessageBox("No tracks were found. This means you either haven't selected any items/tracks or haven't created any markers/regions with a '#' prefix (depending on your chosen marker destination)."
+         , Script_Name, 0)
       return false
    end
    if marker_dest ~= 'markers' then
@@ -434,6 +474,7 @@ function getObjs()
    end
 
    checkObjMinLength()
+   stupid_bug_count = stupid_bug_count + obj_count
 end
 
 function initObjEntries()
@@ -687,9 +728,17 @@ function calculateIsrc(entry)
    local _isrc = { entry.value }
 
    local isrc_fixed = isrc_start:sub(1, 7)
+   local wraped_around = 0
 
    for i = 2, obj_count do
       local isrc_tr_id = tostring(tonumber(isrc_start:sub(8, 12)) + i - 1)
+      if tonumber(isrc_tr_id) > 99999 then
+         wraped_around = wraped_around + 1
+         isrc_tr_id = tostring(wraped_around)
+         for i = 1, 5 - #isrc_tr_id do
+            isrc_tr_id = '0' .. isrc_tr_id
+         end
+      end
       local leading_zeroes = string.match(isrc_start:sub(8, 12), "^0*")
 
       if #isrc_tr_id + #leading_zeroes ~= 5 then
@@ -697,6 +746,10 @@ function calculateIsrc(entry)
       end
 
       _isrc[i] = isrc_fixed .. leading_zeroes .. isrc_tr_id
+   end
+
+   if wraped_around > 0 then
+      r.MB('ISRC auto increment wrapped around to 00001 due to reaching the maximum track id of 99999.', Script_Name, 0)
    end
    return _isrc
 end
@@ -715,14 +768,18 @@ function checkCdText(entry)
 
 end
 
-function checkProjPeople(entry, field)
-   if entry.value ~= '' and proj_entries[field].value == '' then
-      markEntry(proj_entries[field], false)
-      proj_entries[field]:attr('border', 'red#B3')
-   else
-      markEntry(proj_entries[field], true)
-      proj_entries[field]:attr('border', rtk.themes.dark.entry_border)
+function checkProjPeople(field_number)
+   for i = 1, obj_count do
+      if obj_entries[i][field_number].value ~= '' and proj_entries[field_number].value == '' then
+         markEntry(proj_entries[field_number], false)
+         proj_entries[field_number]:attr('border', 'red#B3')
+         return
+      end
    end
+
+   markEntry(proj_entries[field_number], true)
+   proj_entries[field_number]:attr('border', rtk.themes.dark.entry_border)
+   checkCdText(proj_entries[field_number])
 end
 
 function checkPregap(entry)
@@ -755,6 +812,22 @@ function checkPregap(entry)
 
    _pregap = _pregap .. ' seconds'
    entry:attr('value', _pregap)
+end
+
+function checkLanguage(entry)
+   if entry.value == "" then
+      markEntry(entry, true)
+      return
+   end
+
+   for i = 1, #languages do
+      if entry.value == languages[i] then
+         markEntry(entry, true)
+         return true
+      end
+   end
+
+   markEntry(entry, false)
 end
 
 function hasErrors()
@@ -854,6 +927,8 @@ function fillEntries(get_dest_name)
 
       if proj_data_fields[i] == 'EAN' then
          checkEan(proj_entries[i], true)
+      elseif proj_data_fields[i] == 'LANGUAGE' then
+         checkLanguage(proj_entries[i])
       end
    end
 
@@ -870,13 +945,9 @@ function fillEntries(get_dest_name)
          if obj_data_fields[j] == 'TITLE' and objs[i] and
              ((dest_changed and obj_entries[i][j].value == "") or get_dest_name) then
             obj_entries[i][j]:attr('value', objs[i].name)
-         end
-
-         if obj_data_fields[j] == 'ISRC' then
+         elseif obj_data_fields[j] == 'ISRC' then
             checkIsrc(obj_entries[i][j], true)
-         end
-
-         if obj_data_fields[j] == 'PREGAP' then
+         elseif obj_data_fields[j] == 'PREGAP' then
             if obj_entries[i][j].value == "" then
                if i == 1 then
                   obj_entries[i][j]:attr('value', '2')
@@ -901,10 +972,16 @@ function copyDataToAllEntrys(type, section)
 
       for i = 1, obj_count do obj_entries[i][type]:attr('value', data) end
    elseif obj_data_fields[type] == 'ISRC' then
-      data = calculateIsrc(obj_entries[1][type])
-      if data then
+      if obj_entries[1][type].value == "" then
          for i = 1, obj_count do
-            obj_entries[i][type]:attr('value', data[i], false)
+            obj_entries[i][type]:attr('value', "")
+         end
+      else
+         data = calculateIsrc(obj_entries[1][type])
+         if data then
+            for i = 1, obj_count do
+               obj_entries[i][type]:attr('value', data[i])
+            end
          end
       end
    else
@@ -1122,6 +1199,9 @@ function recallWinSize()
 
    if ww == '' or wh == '' then return false end
 
+   ww = tonumber(ww) * scale_change_factor
+   wh = tonumber(wh) * scale_change_factor
+
    w:attr('w', ww)
    w:attr('h', wh)
 
@@ -1141,7 +1221,6 @@ function getEntryTextWidths()
 end
 
 function buildGui()
-
    ----------------------------------
    ---- WINDOW  ---------------------
    ----------------------------------
@@ -1159,6 +1238,7 @@ function buildGui()
    end
 
    recallWinPos()
+
 
    ----------------------------------
    ---- TOOLBAR ---------------------
@@ -1201,10 +1281,14 @@ function buildGui()
    end
 
    user_scale.onchange = function()
+      scale_change_factor = user_scale.selected_id / rtk.scale.user
       rtk.scale.user = user_scale.selected_id
       r.SetExtState(Script_Name, 'user_scale', rtk.scale.user, true)
 
-      resetUI()
+      w:close()
+
+      buildGui()
+      fillEntries()
    end
 
    user_scale:select(rtk.scale.user, false)
@@ -1243,7 +1327,7 @@ function buildGui()
 
    local function tooltipsToggle()
       if show_tooltips then
-         rtk.tooltip_delay = 0.1
+         rtk.tooltip_delay = 0.4
          b_tooltips:attr('flat', false)
          r.SetExtState(Script_Name, 'show_tooltips', 'true', true)
       else
@@ -1281,9 +1365,12 @@ function buildGui()
    app.statusbar:attr('tborder', { Lightest_Grey, 1 })
    app.statusbar:attr('tpadding', 2)
 
+   w:open()
+
    ----------------------------------
    ---- THUMBNAIL/WINDOW TITLE-------
    ----------------------------------
+
 
    w:add(rtk.Heading {
       text = 'METADATA MANAGER',
@@ -1292,6 +1379,14 @@ function buildGui()
       color = { 1, 1, 1, 0.3 },
       fontscale = 0.9,
       fontflags = rtk.font.BOLD
+   })
+
+   w:add(rtk.Heading {
+      text = Script_Version,
+      x = LR_Margin + 150,
+      y = 4,
+      color = { 1, 1, 1, 0.3 },
+      fontscale = 0.8,
    })
 
    local logo_thumb = rtk.Image():load('logo_thumbnail.png')
@@ -1306,7 +1401,6 @@ function buildGui()
    ----------------------------------
    ---- Initializing Stuff ----------
    ----------------------------------
-   w:open()
 
    local w_min_w = (proj_data_fields_count * Entry_Min_W + LR_Margin * 2 + Resize_W * (proj_data_fields_count)) *
        rtk.scale.value
@@ -1360,7 +1454,7 @@ function buildGui()
       x = entries_indent,
       w = entry_w * entry_ratios[1] * proj_data_fields_count,
       h = Entry_H,
-      tooltip = tips.TITLE
+      tooltip = tips.PROJ_TITLE,
    })
 
    proj_entries[1].onchange = function()
@@ -1426,10 +1520,9 @@ function buildGui()
          proj_entries[i].onblur = function()
             checkEan(proj_entries[i], true)
          end
-      elseif proj_data_fields[i] == 'PERFORMER' or proj_data_fields[i] ==
-          'SONGWRITER' or proj_data_fields[i] == 'COMPOSER' or
-          proj_data_fields[i] == 'ARRANGER' then
-         proj_entries[i]:attr('tooltip', tips.PEOPLE)
+      elseif proj_data_fields[i] == 'PERFORMER' or proj_data_fields[i] == 'SONGWRITER' or
+          proj_data_fields[i] == 'COMPOSER' or proj_data_fields[i] == 'ARRANGER' then
+         proj_entries[i]:attr('tooltip', tips.PROJ_PEOPLE)
          copy_buttons_proj[i] = proj_text_box:add(rtk.Button {
             label = "copy",
             x = proj_entries[i].x + proj_entries[i].w - 29,
@@ -1438,6 +1531,7 @@ function buildGui()
             padding = 4,
             flat = true,
             fontsize = 12,
+            tooltip = tips.COPY
          })
 
          copy_buttons_proj[i].onclick = function()
@@ -1445,13 +1539,19 @@ function buildGui()
          end
 
          proj_entries[i].onchange = function()
-            checkProjPeople(proj_entries[i], i)
-            checkCdText(proj_entries[i])
+            checkProjPeople(i)
          end
       elseif proj_data_fields[i] == 'GENRE' then
          proj_entries[i]:attr('tooltip', tips.GENRE)
       elseif proj_data_fields[i] == 'LANGUAGE' then
          proj_entries[i]:attr('tooltip', tips.LANGUAGE)
+
+         proj_entries[i].onchange = function()
+            checkCdText(proj_entries[i])
+         end
+         proj_entries[i].onblur = function()
+            checkLanguage(proj_entries[i])
+         end
       else
          proj_entries[i].onchange = function()
             checkCdText(proj_entries[i])
@@ -1498,7 +1598,7 @@ function buildGui()
                x = entries_indent,
                w = entry_w * entry_ratios[j] * proj_data_fields_count,
                h = Entry_H,
-               tooltip = tips.TITLE
+               tooltip = tips.OBJ_TITLE
             })
          else
             local entry_x = resize[j - 1].x + resize[j - 1].w
@@ -1528,6 +1628,7 @@ function buildGui()
                padding = 4,
                flat = true,
                fontsize = 12,
+               tooltip = tips.COPY
             })
 
 
@@ -1539,6 +1640,7 @@ function buildGui()
 
          if obj_data_fields[j] == 'ISRC' then
             obj_entries[i][j]:attr('tooltip', tips.ISRC)
+            b_copy_objs[j]:attr('tooltip', tips.COPY_ISRC)
             obj_entries[i][j].onchange = function()
                checkIsrc(obj_entries[i][j], false)
             end
@@ -1566,12 +1668,11 @@ function buildGui()
              obj_data_fields[j] == 'COMPOSER' or
              obj_data_fields[j] == 'ARRANGER' then
 
-            obj_entries[i][j]:attr('tooltip', tips.PEOPLE)
+            obj_entries[i][j]:attr('tooltip', tips.OBJ_PEOPLE)
 
             obj_entries[i][j].onchange = function()
                checkCdText(obj_entries[i][j])
-               checkProjPeople(obj_entries[i][j], j)
-               checkCdText(proj_entries[j])
+               checkProjPeople(j)
             end
          else
             obj_entries[i][j].onchange = function()
@@ -1680,6 +1781,8 @@ function buildGui()
          end
 
          if event.keycode == rtk.keycodes.ENTER then
+            if obj_count < 1 then return end
+
             if event.shift and i <= obj_data_fields_count then
                obj_entries[obj_count][i]:focus()
                vp:scrollto(0,
@@ -1825,11 +1928,19 @@ function buildGui()
    })
 
    dest_menu.onselect = function()
-      w:close()
-
       dest_changed = true
       marker_dest = dest_menu.selected_id
+      w:close()
       getObjs()
+
+      if stupid_bug_count > 140 then
+         local err_msg = string.format('Something went wrong. Please restart Metadata Manager.\n\nError code: 1-%i',
+            stupid_bug_count)
+         r.MB(err_msg, Script_Name, 0)
+         rtk.quit()
+         return
+      end
+
       buildGui()
       fillEntries(cb_dest_import.value)
    end
@@ -2283,6 +2394,16 @@ function buildGui()
          checkLogoOverlap()
       end
    end
+
+   w.onkeypresspre = function(self, event)
+      if event.keycode == rtk.keycodes.UP and event.ctrl and user_scale.selected_index < 7 then
+         user_scale:select(user_scale.selected_index + 1)
+         event:set_handled()
+      elseif event.keycode == rtk.keycodes.DOWN and event.ctrl and user_scale.selected_index > 1 then
+         user_scale:select(user_scale.selected_index - 1)
+         event:set_handled()
+      end
+   end
 end
 
 function main()
@@ -2391,8 +2512,8 @@ function init()
          heading_font = { 'Calibri', 20 },
          accent = 'white',
 
-         tooltip_bg = { 0.3, 0.3, 0.3 },
-         tooltip_text = Grey,
+         tooltip_bg = 'snow',
+         tooltip_text = '#404040',
          tooltip_font = { 'Calibri', 14 }
       })
 
