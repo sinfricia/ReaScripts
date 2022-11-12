@@ -1,25 +1,22 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.9.0
--- @changelog
---  - Reworked pregap creation system. Pregap can now be specified per track.
---  - Added additional warnings if tracks or markers don't conform with the CD Red Book standard.
---  - On startup the script can now automatically set all necessary grid settings to ensure CD Red Book conformity.
---  - Markers are now always placed on the grid.
---  - Many, many bugfixes and improvments.
+-- @version 0.9.1
+-- @about
+--  # METADATA MANAGER
+--  This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.
+--	 Key features:
+--  - Clear and easy to use interface to enter Metadata
+--  - Multiple possible workflows to create DDP markers
+--  - Elaborate error checking in regards to the CD Red Book standard
+--  - Responsive UI
 -- @provides
 --  img/logo.png
 --  img/logo_what.png
 --  img/logo_thumbnail.png
--- @about
---  # METADATA MANAGER
---  This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.
---  ### Key features:
---   - Clear and easy to use interface to enter Metadata
---   - Multiple possible workflows to create DDP markers
---   - Elaborate error checking in regards to the CD Red Book standard
---   - Responsive UI
--------------------
+-- @changelog
+--  - Updated tooltips
+--  - Improved pregap field apperance
+--  - Changed album marker number to 900 for better compatibility with ReaClassical
 
 
 ---- CONFIG STUFF ----
@@ -166,9 +163,9 @@ local tips = {
       !"$%&\'()*+,-./0123456789:<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
    ]],
    EAN = [[
-      Enter your 13 digit EAN/UPC number here. In this field only numbers are allowed.
+      Enter your 13 digit EAN number here. In this field only numbers are allowed.
 
-      If your number is not a valid EAN/UPC the entry wil light up red.
+      If your number is not a valid EAN the entry wil light up red.
    ]],
    ISRC = [[
       Enter your ISRC here. Use the 'copy' button or press alt + shift + downarrow to quickly copy the top entry
@@ -206,6 +203,9 @@ local tips = {
       Shona, Sinhalese, Slovak, Slovenian, Somali, Spanish, SrananTongo, Swahili, Swedish, Tadzhik, Tamil, Tatar, Telugu, Thai, Turkish, Ukrainian, Urdu, Uzbek,
       Vietnamese, Wallon, Welsh, Zulu
    ]],
+   PREGAP = [[
+      Enter your pregap time here. If pregap is 0 no pregap marker will be created. For the first track the minimum pregap is 2 seconds.
+   ]],
    dest_menu = [[
       Metadata Manager (MM) provides several different workflows to get already existing data from and markers into your project. On first startup MM 
       automatically imports all available data from your last set marker destination. After that if you change your marker destination
@@ -215,16 +215,26 @@ local tips = {
       If you want to change your marker destination again you need to first delete all metadata markers in your project. Use the clear function
       or delete them manually and restart the script.
 
-      Items: Track postions and names are imported from selected items. Data and pregap markers are created at the start of selected items. 
-             Items only need to be selected when changing destination after that the script remebers your initial selection.
+      Items: 
+      Track postions and names are imported from selected items. Data and pregap markers are created at the start of selected items, the album marker 
+      at the end of the last selected item. 
+      Items only need to be selected when changing destination after that the script remebers your initial selection.
 
-      Tracks: Track postions and names are imported from selected tracks. Data and pregap markers are created at the start of the first item in each track. 
-              Tracks only need to be selected when changing destination after that the script remebers your selection.
+      Tracks: 
+      Track postions and names are imported from selected tracks. Data and pregap markers are created at the start of the first item in each track, 
+      the album marker at the end of the last item in the last selected track.  
+      Tracks only need to be selected when changing destination after that the script remebers your selection.
 
-      Regions: Track postions and names are imported from regions with names starting with '#'. Data markers are created at the start of these regions.
+      Regions: 
+      Track postions and names are imported from regions with names starting with '#'. Data markers are created at the start of these regions, the 
+      album marker at the end of the last region.
 
-      Markers: Markers with names starting with '#' are replaced by data markers. If the marker names contain data in the format "...KEY1=value1|KEY2=value2|..." 
-               with keys corresponding to CD-Text data fields then all this data is imported into MM.
+      Markers:
+      Markers with names starting with '#' are replaced by data markers. The album marker is placed at the end of the last item in the project. If 
+      the marker names contain data in the format "...KEY1=value1|KEY2=value2|..." with keys corresponding to CD-Text data fields then all this data 
+      is imported into MM.
+
+      If you have a marker named '=END' in your project your album marker will always be placed there.
    ]],
    cb_dest_import = [[
       On first startup Metadata Manager (MM) automatically imports all track titles from your last set marker destination. After that if you change
@@ -866,12 +876,16 @@ function fillEntries(get_dest_name)
             checkIsrc(obj_entries[i][j], true)
          end
 
-         if obj_data_fields[j] == 'PREGAP' and obj_entries[i][j].value == "" then
-            if i == 1 then
-               obj_entries[i][j]:attr('value', '2')
-            else
-               obj_entries[i][j]:attr('value', '0')
+         if obj_data_fields[j] == 'PREGAP' then
+            if obj_entries[i][j].value == "" then
+               if i == 1 then
+                  obj_entries[i][j]:attr('value', '2')
+               else
+                  obj_entries[i][j]:attr('value', '0')
+               end
             end
+
+            checkPregap(obj_entries[i][j])
          end
       end
    end
@@ -1004,7 +1018,7 @@ function createDataMarkers()
 
    marker_pos[proj_marker_pos] = true
 
-   r.AddProjectMarker2(0, 0, proj_marker_pos, 0, proj_marker, 999, proj_marker_color)
+   r.AddProjectMarker2(0, 0, proj_marker_pos, 0, proj_marker, 900, proj_marker_color)
 
    local obj_marker_pos
    for i = 1, obj_count do
@@ -1535,7 +1549,7 @@ function buildGui()
          elseif obj_data_fields[j] == 'PREGAP' then
 
             obj_entries[i][j]:attr('bg', { 0.2, 0.2, 0.2, 1 })
-
+            obj_entries[i][j]:attr('tooltip', tips.PREGAP)
 
             obj_entries[i][j].onclick = function()
                obj_entries[i][j]:select_all()
