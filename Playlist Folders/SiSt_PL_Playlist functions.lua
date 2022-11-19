@@ -1,6 +1,6 @@
 -- @description Playlist Folders
 -- @author sinfricia
--- @version 0.9.0
+-- @version 0.9.01
 -- @about
 --  # Playlist Folders
 --
@@ -14,7 +14,6 @@
 --   Running an action on one track will run it for all grouped tracks. Even without their playlists showing!
 --   If you ever accidentally move a playlist of a grouped track or want to restore order in your playlist folders you can automatically sort them again by number.
 -- @provides
---  [nomain] .
 --  [main] SiSt_PL_Copy item selection to target playlist.lua
 --  [main] SiSt_PL_Create new playlists for selected tracks.lua
 --  [main] SiSt_PL_Cycle down through playlists.lua
