@@ -95,11 +95,11 @@
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 sinfricia's ReaPack repository\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 sinfricia's ReaPack repository\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 More to come. Use https://github.com/sinfricia/ReaScripts/raw/master/index.xml\par}
 }
 ]]></description>
