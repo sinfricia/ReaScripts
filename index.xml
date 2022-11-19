@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="f870f478ac237cc6014415b6930f5945c3e6f0a5">
+<index version="1" name="SiSt Scripts" commit="f7e6ef232210132937900b4d4bbbbf42a105fa04">
   <category name="Metadata Manager">
     <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
       <metadata>
@@ -70,6 +70,38 @@
         <source file="img/logo.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo.png</source>
         <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo_what.png</source>
         <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo_thumbnail.png</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Playlist Folders">
+    <reapack name="SiSt_PL_Playlist functions.lua" type="script" desc="Playlist Folders">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 Playlist Folders\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Features: Create Pro Tools style playlists in Reaper. Record on automatically numbered playlists, then assemble your takes on a target playlist. Cycle through your playlists or move specific playlists to the top. Toggle solo (listen) to specific playlists. All actions (should) work with playlists hidden. All actions (should) work on grouped tracks using Reapers native track grouping system. Use the "Record Arm Lead" parameter. Running an action on one track will run it for all grouped tracks. Even without their playlists showing! If you ever accidentally move a playlist of a grouped track or want to restore order in your playlist folders you can automatically sort them again by number.\par}
+}
+]]></description>
+      </metadata>
+      <version name="0.9.0" author="sinfricia" time="2022-11-19T11:45:59Z">
+        <changelog><![CDATA[- Cycling playlists on tracks without playlists now works as expected, aka does nothing.
+- Toggling visibility now properly respects hidden tracks, aka does nothing to them.
+- Reworked the listening to playlist function. Should be much more usable now.]]></changelog>
+        <source>https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Playlist%20functions.lua</source>
+        <source main="main" file="SiSt_PL_Copy item selection to target playlist.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Copy%20item%20selection%20to%20target%20playlist.lua</source>
+        <source main="main" file="SiSt_PL_Create new playlists for selected tracks.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Create%20new%20playlists%20for%20selected%20tracks.lua</source>
+        <source main="main" file="SiSt_PL_Cycle down through playlists.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Cycle%20down%20through%20playlists.lua</source>
+        <source main="main" file="SiSt_PL_Cycle up through playlists.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Cycle%20up%20through%20playlists.lua</source>
+        <source main="main" file="SiSt_PL_Duplicate selected playlist.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Duplicate%20selected%20playlist.lua</source>
+        <source main="main" file="SiSt_PL_Move selected playlist to top.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Move%20selected%20playlist%20to%20top.lua</source>
+        <source main="main" file="SiSt_PL_Move target playlist to top.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Move%20target%20playlist%20to%20top.lua</source>
+        <source main="main" file="SiSt_PL_Select all playlists in group with same offset to parent (runs in background).lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Select%20all%20playlists%20in%20group%20with%20same%20offset%20to%20parent%20(runs%20in%20background).lua</source>
+        <source main="main" file="SiSt_PL_Sort playlists of selected track.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Sort%20playlists%20of%20selected%20track.lua</source>
+        <source main="main" file="SiSt_PL_Toggle listen to playlist.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Toggle%20listen%20to%20playlist.lua</source>
+        <source main="main" file="SiSt_PL_Toggle playlist visibility for all tracks.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Toggle%20playlist%20visibility%20for%20all%20tracks.lua</source>
+        <source main="main" file="SiSt_PL_Toggle playlist visibility for selected tracks.lua">https://github.com/sinfricia/ReaScripts/raw/67c90549cd9a92e05194b4f86e3d56222cfcfc35/Playlist%20Folders/SiSt_PL_Toggle%20playlist%20visibility%20for%20selected%20tracks.lua</source>
       </version>
     </reapack>
   </category>
