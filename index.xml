@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="e95e243fa3eac08a94d29cd298b4a37751cb7816">
+<index version="1" name="SiSt Scripts" commit="f870f478ac237cc6014415b6930f5945c3e6f0a5">
   <category name="Metadata Manager">
     <reapack name="SiSt_Metadata Manager.lua" type="script" desc="Metadata Manager">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 METADATA MANAGER\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 METADATA MANAGER\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper. Key features:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Clear and easy to use interface to enter Metadata\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Multiple possible workflows to create DDP markers\par}
@@ -57,7 +57,7 @@
         <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/img/logo_what.png</source>
         <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/15eb4e079d84e9ae37458c9d053de62185e92064/Metadata%20Manager/img/logo_thumbnail.png</source>
       </version>
-      <version name="0.9.2" author="sinfricia" time="2022-11-12T12:16:17Z">
+      <version name="0.9.2" author="sinfricia" time="2022-11-12T12:21:36Z">
         <changelog><![CDATA[- Reworked tooltips apperance
 - Improved tooltips content
 - Added version number to UI
@@ -66,10 +66,10 @@
 - Script window now scales properly on UI scale change
 - Added keyboard shortcut (ctrl + up/down arrow) to scale UI
 - Fixed various crashes and bugs]]></changelog>
-        <source main="main">https://github.com/sinfricia/ReaScripts/raw/e95e243fa3eac08a94d29cd298b4a37751cb7816/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
-        <source file="img/logo.png">https://github.com/sinfricia/ReaScripts/raw/e95e243fa3eac08a94d29cd298b4a37751cb7816/Metadata%20Manager/img/logo.png</source>
-        <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/e95e243fa3eac08a94d29cd298b4a37751cb7816/Metadata%20Manager/img/logo_what.png</source>
-        <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/e95e243fa3eac08a94d29cd298b4a37751cb7816/Metadata%20Manager/img/logo_thumbnail.png</source>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/SiSt_Metadata%20Manager.lua</source>
+        <source file="img/logo.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo.png</source>
+        <source file="img/logo_what.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo_what.png</source>
+        <source file="img/logo_thumbnail.png">https://github.com/sinfricia/ReaScripts/raw/f870f478ac237cc6014415b6930f5945c3e6f0a5/Metadata%20Manager/img/logo_thumbnail.png</source>
       </version>
     </reapack>
   </category>
