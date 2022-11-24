@@ -1,6 +1,6 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.9.2
+-- @version 0.9.3
 -- @about
 --  # METADATA MANAGER
 --  This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.
@@ -14,19 +14,17 @@
 --  img/logo_what.png
 --  img/logo_thumbnail.png
 -- @changelog
---  - Reworked tooltips apperance
---  - Improved tooltips content
---  - Added version number to UI
---  - Added error checking for language field
---  - Improved error checking for people fields
---  - Script window now scales properly on UI scale change
---  - Added keyboard shortcut (ctrl + up/down arrow) to scale UI
---  - Fixed various crashes and bugs
+--  - Script now handles switching projects in Reaper
+--  - Improved typing in pregap fields
+--  - Improved scaling behaviour
+--  - Fixed and improved minimum track length check
+--  - ESC now quits the script properly when entries are focused
+--  - Various bugfixes and enhancements
 
 
 ---- CONFIG STUFF ----
 local Script_Name = 'Metadata Manager'
-local Script_Version = 'v0.9.2'
+local Script_Version = 'v0.9.3'
 local r = reaper
 r.ClearConsole()
 local entrypath = ({ r.get_action_context() })[2]:match('^.+[\\//]')
@@ -70,8 +68,12 @@ local pregap_marker_color = r.ColorToNative(0, 0, 0) | 0x1000000
 -------------------------------------
 
 ---- SHARED VARIABLES ----
+local curr_project = r.EnumProjects(-1)
+local prev_project_guid = ""
+local project_closed = false
+local entries_filled = false
 
-local retval, proj_marker_dest = r.GetProjExtState(0, Script_Name, 'dest')
+local retval, proj_marker_dest = r.GetProjExtState(curr_project, Script_Name, 'dest')
 local ext_marker_dest = r.GetExtState(Script_Name, 'dest')
 local marker_dest
 if retval ~= 0 then
@@ -84,7 +86,7 @@ end
 
 local dest_changed = true
 
-if r.GetProjExtState(0, Script_Name, 'dest') then dest_changed = false end
+if r.GetProjExtState(curr_project, Script_Name, 'dest') then dest_changed = false end
 
 local proj_data_fields_count = #proj_data_fields
 local obj_data_fields_count = #obj_data_fields
@@ -115,9 +117,9 @@ local obj_regions_idx
 local marker_end_pos
 
 local markers_created = false
-if r.GetProjExtState(0, Script_Name, 'markers_created') then
+if r.GetProjExtState(curr_project, Script_Name, 'markers_created') then
    _, markers_created =
-   r.GetProjExtState(0, Script_Name, 'markers_created')
+   r.GetProjExtState(curr_project, Script_Name, 'markers_created')
    markers_created = stringtoboolean(markers_created)
 end
 
@@ -242,6 +244,8 @@ local tips = {
    ]],
    PREGAP = [[
       Enter your pregap time here. If pregap is 0 no pregap marker will be created. For the first track the minimum pregap is 2 seconds.
+      Like all other markers, pregap markers will be placed on frame boundaries at 75 frames/second. Therefore once you create/update 
+      markers the time you entered might change slightly to reflect this., 
    ]],
    dest_menu = [[
       Metadata Manager (MM) provides several different workflows to get already existing data from and markers into your project. On first use MM 
@@ -299,7 +303,8 @@ local tips = {
 
       Markers: Deletes all metadata markers (including pregap markers) from the active project. This is undoable.
 
-      Shift + click to reset script to initial state.
+      Shift + click clears all entries.
+      Alt + click performs a factory reset of the software.
    ]],
    user_scale = [[
       Sets UI scaling. Keyboard shortcut: crtl + up/down arrow
@@ -316,7 +321,7 @@ local tips = {
 function getObjs()
    objs = {}
    getMarkerData()
-   local _, ext_obj_count = r.GetProjExtState(0, Script_Name, 'obj_count')
+   local _, ext_obj_count = r.GetProjExtState(curr_project, Script_Name, 'obj_count')
    ext_obj_count = tonumber(ext_obj_count)
    if type(ext_obj_count) == 'number' then obj_count = ext_obj_count end
    local ext_objs = getExtObjs()
@@ -413,12 +418,13 @@ function getObjs()
          if marker_dest == 'markers' then
             if i == obj_count then
                local item_count = r.CountMediaItems(0)
+               local max_item_end = -1
+
                if item_count == 0 then
                   stop = r.GetProjectLength(0)
                   goto skip
                end
 
-               local max_item_end = -1
                for j = 1, item_count do
                   local item = r.GetMediaItem(0, j - 1)
                   if item ~= nil then
@@ -431,8 +437,14 @@ function getObjs()
                   end
                end
                stop = max_item_end
+
+               ::skip::
+               if stop - pos == 0 then
+                  stop = pos + 4
+               end
             end
-            ::skip::
+
+
             if i ~= 1 then
                objs[i - 1].stop = pos
             end
@@ -474,7 +486,6 @@ function getObjs()
    end
 
    checkObjMinLength()
-   stupid_bug_count = stupid_bug_count + obj_count
 end
 
 function initObjEntries()
@@ -487,7 +498,7 @@ end
 function storeExtStateData()
    for i = 1, proj_data_fields_count do
       if proj_entries[i].value then
-         r.SetProjExtState(0, Script_Name, proj_data_fields[i],
+         r.SetProjExtState(curr_project, Script_Name, proj_data_fields[i],
             proj_entries[i].value)
       end
       r.SetExtState(Script_Name, 'entry_ratios' .. tostring(i),
@@ -502,11 +513,11 @@ function storeExtStateData()
          obj_marker = obj_marker .. obj_data_fields[j] .. '=' ..
              value .. '|'
       end
-      r.SetProjExtState(0, Script_Name, 'obj_data' .. i, obj_marker)
+      r.SetProjExtState(curr_project, Script_Name, 'obj_data' .. i, obj_marker)
 
       if marker_dest == 'items' or marker_dest == 'tracks' then
          if objs[i].guid then
-            r.SetProjExtState(0, Script_Name, 'obj_guid' .. i, objs[i].guid)
+            r.SetProjExtState(curr_project, Script_Name, 'obj_guid' .. i, objs[i].guid)
          end
       end
    end
@@ -514,14 +525,14 @@ function storeExtStateData()
    if not markers_created then
       r.SetExtState(Script_Name, 'dest', marker_dest, true)
    end
-   r.SetProjExtState(0, Script_Name, 'obj_count', obj_count)
+   r.SetProjExtState(curr_project, Script_Name, 'obj_count', obj_count)
 end
 
 function getExtObjs()
    local _ext_objs = {}
    for i = 1, obj_count do
       if marker_dest == 'items' or marker_dest == 'tracks' then
-         _, _ext_objs[i] = r.GetProjExtState(0, Script_Name, 'obj_guid' .. i)
+         _, _ext_objs[i] = r.GetProjExtState(curr_project, Script_Name, 'obj_guid' .. i)
       end
    end
 
@@ -534,7 +545,7 @@ function getExtData()
 
    for i = 1, proj_data_fields_count do
       _, _proj_ext_data[proj_data_fields[i]] =
-      r.GetProjExtState(0, Script_Name, proj_data_fields[i])
+      r.GetProjExtState(curr_project, Script_Name, proj_data_fields[i])
    end
 
    local _obj_ext_data = {}
@@ -542,8 +553,8 @@ function getExtData()
    for i = 1, obj_count do
       _obj_ext_data[i] = {}
 
-      retval, _obj_ext_data[i]['extString'] = r.GetProjExtState(0, Script_Name, 'obj_data' .. i)
-      r.GetProjExtState(0, Script_Name, 'obj_data' .. i)
+      retval, _obj_ext_data[i]['extString'] = r.GetProjExtState(curr_project, Script_Name, 'obj_data' .. i)
+      r.GetProjExtState(curr_project, Script_Name, 'obj_data' .. i)
 
       if retval ~= 0 then
          local j = 1
@@ -616,7 +627,7 @@ function getMarkerData()
    end
 
    -- Calculate Pregaps
-   local prev_obj_pos = -10000
+   local prev_obj_pos = -100000
    for i = 1, #obj_marker_idx do
       local obj_pos = markers[obj_marker_idx[i]].pos
       for j = 1, #pregap_markers_idx do
@@ -632,19 +643,42 @@ function getMarkerData()
 
    if #obj_marker_idx < 1 and not proj_marker_data.idx then
       markers_created = false
-      r.SetProjExtState(0, Script_Name, 'markers_created', 'false')
+      r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
    end
 end
 
 function checkObjMinLength()
+   local short_tracks = {}
    for i = 1, obj_count do
 
       if objs[i].stop - objs[i].start < 4 then
-         local err_msg = string.format('Track %i is shorter than 4 seconds. For conformity with the Red Book CD standard tracks need to be longer than 4 seconds!'
-            , i)
-         return r.MB(err_msg, Script_Name, 0)
+         table.insert(short_tracks, i)
       end
    end
+
+   if #short_tracks == 0 then return end
+
+   local short_tracks_string = ""
+   for i = 1, #short_tracks do
+      if i == #short_tracks then
+         short_tracks_string = short_tracks_string .. tostring(short_tracks[i])
+      elseif i == #short_tracks - 1 then
+         short_tracks_string = short_tracks_string .. tostring(short_tracks[i]) .. ' and '
+      else
+         short_tracks_string = short_tracks_string .. tostring(short_tracks[i]) .. ', '
+      end
+   end
+
+   local err_msg = ""
+   if #short_tracks == 1 then
+      err_msg = string.format('Track %s is shorter than 4 seconds. For conformity with the Red Book CD standard tracks need to be at least 4 seconds!'
+         , short_tracks_string)
+   else
+      err_msg = string.format('Tracks %s are shorter than 4 seconds. For conformity with the Red Book CD standard tracks need to be at least 4 seconds!'
+         , short_tracks_string)
+   end
+
+   return r.MB(err_msg, Script_Name, 0)
 end
 
 --------------------------------------------
@@ -782,9 +816,16 @@ function checkProjPeople(field_number)
    checkCdText(proj_entries[field_number])
 end
 
-function checkPregap(entry)
+function checkPregap(entry, isblur)
+
    local _pregap = entry.value
-   if _pregap:match('^%d+%.?%d*') then
+   local _pregap_number
+
+   _pregap = _pregap:gsub("[^%d%.]", "")
+
+   if _pregap:match('^%.+$') then
+      _pregap = '.'
+   elseif _pregap:match('^%d+%.?%d*') then
       _pregap = _pregap:match('^%d+%.?%d*')
    elseif _pregap:match('^%.%d*') then
       _pregap = _pregap:match('^%.%d*')
@@ -792,26 +833,32 @@ function checkPregap(entry)
       _pregap = '0'
    end
 
-   _pregap = tonumber(_pregap)
+   if isblur then
+      if _pregap == '.' then
+         _pregap = '0'
+      end
+      _pregap = tonumber(_pregap)
+      _pregap = tostring(_pregap)
+      _pregap = _pregap:gsub('%.0$', "")
+      _pregap = _pregap:sub(1, 7)
+   end
+
+   _pregap_number = tonumber(_pregap)
+   if not _pregap_number then _pregap_number = 0 end
    if entry == obj_entries[1][7] then
-      if _pregap < 2 then
+      if _pregap_number < 2 then
          markEntry(entry, false)
       else
          markEntry(entry, true)
       end
-   elseif _pregap == 0 then
+   elseif _pregap_number == 0 then
       entry:attr('textcolor', Light_Grey)
    else
       entry:attr('textcolor', 'white')
    end
 
-   _pregap = tostring(_pregap)
-   _pregap = _pregap:sub(1, 7)
-
-
-
    _pregap = _pregap .. ' seconds'
-   entry:attr('value', _pregap)
+   entry:attr('value', _pregap, false)
 end
 
 function checkLanguage(entry)
@@ -858,7 +905,7 @@ end
 
 function checkGridSettings()
    if r.SNM_GetIntConfigVar('projfrbase', 0) ~= 75 or r.SNM_GetIntConfigVar('projgridframe', 0) & 1 ~= 1 then
-      local ok = r.MB("Your grid is not set to 75 frames/second. DDP markers must be placed on a frame boundary at 75 frames per second. \nDo you want to set your grid/snap settings accordingly? (Highly recommended!)"
+      local ok = r.MB("Your grid in this project is not set to 75 frames/second. DDP markers must be placed on a frame boundary at 75 frames/second. MM can only do this if your grid is set to that framerate. \n\nDo you want MM to set your grid/snap settings accordingly? (Highly recommended!)"
          , Script_Name, 4)
 
       if ok == 6 then
@@ -873,15 +920,39 @@ function checkGridSettings()
 end
 
 function checkObjOnGrid()
+   local non_grid_tr = {}
    for i = 1, obj_count do
       local obj_start = string.format('%.10f', objs[i].start)
       local closest_grid = string.format('%.10f', r.BR_GetClosestGridDivision(objs[i].start))
 
       if obj_start ~= closest_grid then
-         local errmsg = "Some of your items don't start on a frame boundary at 75 frames/second. This might cause unwanted overlap between tracks when creating markers. Please consider aligning your item positions to frames"
-         return r.MB(errmsg, Script_Name, 0)
+         table.insert(non_grid_tr, i)
       end
    end
+
+   if #non_grid_tr == 0 then return end
+
+   local non_grid_tr_string = ""
+   for i = 1, #non_grid_tr do
+      if i == #non_grid_tr then
+         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i])
+      elseif i == #non_grid_tr - 1 then
+         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i]) .. ' and '
+      else
+         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i]) .. ', '
+      end
+   end
+
+   local err_msg = ""
+   if #non_grid_tr == 1 then
+      err_msg = string.format("Track %s doesn't start on a frame boundary at 75 frames/second. This might cause unwanted overlap between tracks when creating markers. Please consider aligning your tracks positions to frames"
+         , non_grid_tr_string)
+   else
+      err_msg = string.format("Tracks %s don't start on a frame boundary at 75 frames/second. This might cause unwanted overlap between tracks when creating markers. Please consider aligning your item positions to frames"
+         , non_grid_tr_string)
+   end
+
+   return r.MB(err_msg, Script_Name, 0)
 end
 
 function getCurrOrPrevGridPos(_pos)
@@ -948,21 +1019,24 @@ function fillEntries(get_dest_name)
          elseif obj_data_fields[j] == 'ISRC' then
             checkIsrc(obj_entries[i][j], true)
          elseif obj_data_fields[j] == 'PREGAP' then
+
             if obj_entries[i][j].value == "" then
                if i == 1 then
-                  obj_entries[i][j]:attr('value', '2')
+                  obj_entries[i][j]:attr('value', '2', false)
                else
-                  obj_entries[i][j]:attr('value', '0')
+                  obj_entries[i][j]:attr('value', '0', false)
                end
             end
 
-            checkPregap(obj_entries[i][j])
+            checkPregap(obj_entries[i][j], true)
+            obj_entries[i][j]:blur()
          end
       end
    end
 
    dest_changed = false
-   r.SetProjExtState(0, Script_Name, 'dest', marker_dest)
+   r.SetProjExtState(curr_project, Script_Name, 'dest', marker_dest)
+   entries_filled = true
 end
 
 function copyDataToAllEntrys(type, section)
@@ -994,7 +1068,7 @@ function clearProjEntries()
    for i = 1, proj_data_fields_count do
       proj_entries[i]:attr('value', "")
       markEntry(proj_entries[i], true)
-      r.SetProjExtState(0, Script_Name, proj_data_fields[i], "")
+      r.SetProjExtState(curr_project, Script_Name, proj_data_fields[i], "")
    end
 end
 
@@ -1011,10 +1085,10 @@ function clearObjEntries()
    end
 
    local i = 0
-   while reaper.EnumProjExtState(0, Script_Name, i) do
-      local retval, key = reaper.EnumProjExtState(0, Script_Name, i)
+   while reaper.EnumProjExtState(curr_project, Script_Name, i) do
+      local retval, key = reaper.EnumProjExtState(curr_project, Script_Name, i)
       if key:find('obj') then
-         r.SetProjExtState(0, Script_Name, key, "")
+         r.SetProjExtState(curr_project, Script_Name, key, "")
       end
       i = i + 1
    end
@@ -1023,24 +1097,16 @@ function clearObjEntries()
 end
 
 function clearAllData()
+   w:close()
    clearObjEntries()
-   local i = 0
-   while true do
-      local retval, key, _ = reaper.EnumProjExtState(0, Script_Name, i)
-
-      if not retval then
-         break
-      else
-         r.SetProjExtState(0, Script_Name, key, "")
-      end
-   end
+   clearProjEntries()
    objs = {}
    obj_count = 0
-   w:close()
+
+   marker_dest = r.GetExtState(Script_Name, 'dest')
 
    buildGui()
    fillEntries()
-   clearProjEntries()
 end
 
 function deleteDataMarkers()
@@ -1153,13 +1219,6 @@ function createDataMarkers()
       end
    end
 
-   --[[ 	r.SetEditCurPos(0, 1, 0)
-      r.Main_OnCommand(40635, 1) --remove time selection
-      r.Main_OnCommand(40296, 1) -- select all tracks
-      r.Main_OnCommand(r.NamedCommandLookup("_SWS_VZOOMFIT"), 1) --zoom to selected tracks vertically
-      r.Main_OnCommand(40769, 1) --unselect tracks and items
-      r.Main_OnCommand(40295, 1) --zoom out to project horizontally ]]
-
    r.Undo_EndBlock("Create/update metadata markers", -1)
    reaper.PreventUIRefresh(-1)
 end
@@ -1202,6 +1261,7 @@ function recallWinSize()
    ww = tonumber(ww) * scale_change_factor
    wh = tonumber(wh) * scale_change_factor
 
+
    w:attr('w', ww)
    w:attr('h', wh)
 
@@ -1220,7 +1280,55 @@ function getEntryTextWidths()
    end
 end
 
+function handleProjectChange()
+   project_closed = false
+   local retval, curr_proj_guid = r.GetProjExtState(0, Script_Name, "proj_guid")
+
+   if retval ~= 1 then
+      curr_proj_guid = reaper.genGuid("")
+
+      reaper.SetProjExtState(0, Script_Name, "proj_guid", curr_proj_guid, true)
+   end
+
+   if prev_project_guid == "" then
+      prev_project_guid = curr_proj_guid
+   end
+
+   if curr_proj_guid ~= prev_project_guid then --project changed
+      local i = 0
+      while true do
+         local project = r.EnumProjects(i)
+
+         if not project then break end
+
+         local _, project_guid = r.GetProjExtState(project, Script_Name, "proj_guid")
+         if project_guid == prev_project_guid then
+            w:close()
+            curr_project = r.EnumProjects(-1)
+            prev_project_guid = curr_proj_guid
+            main()
+            return
+         end
+
+         i = i + 1
+      end
+      project_closed = true
+      prev_project_guid = ""
+      rtk.quit()
+   end
+end
+
 function buildGui()
+
+   stupid_bug_count = stupid_bug_count + obj_count
+   if stupid_bug_count > 140 then
+      local err_msg = string.format('Something went wrong. Please restart Metadata Manager.\n\nError code: 1-%i',
+         stupid_bug_count)
+      r.MB(err_msg, Script_Name, 0)
+      rtk.quit()
+      return
+   end
+
    ----------------------------------
    ---- WINDOW  ---------------------
    ----------------------------------
@@ -1232,9 +1340,20 @@ function buildGui()
    }
 
    w.onclose = function()
-      storeExtStateData()
+      entries_filled = false
+      if not project_closed then
+         storeExtStateData()
+      end
       storeWinPos()
       storeWinSize()
+   end
+
+   w.onupdate = function()
+
+      if entries_filled then
+         handleProjectChange()
+      end
+
    end
 
    recallWinPos()
@@ -1273,8 +1392,10 @@ function buildGui()
 
       w:close()
 
-      r.SetExtState(Script_Name, 'ww', '', true)
-      r.SetExtState(Script_Name, 'wh', '', true)
+      r.DeleteExtState(Script_Name, 'wx', true)
+      r.DeleteExtState(Script_Name, 'wy', true)
+      r.DeleteExtState(Script_Name, 'wh', true)
+      r.DeleteExtState(Script_Name, 'wh', true)
 
       buildGui()
       fillEntries()
@@ -1289,6 +1410,7 @@ function buildGui()
 
       buildGui()
       fillEntries()
+      scale_change_factor = 1
    end
 
    user_scale:select(rtk.scale.user, false)
@@ -1305,10 +1427,11 @@ function buildGui()
    })
    b_reset_ui.onclick = function() resetUI() end
 
-   local show_tooltips = stringtoboolean(r.GetExtState(Script_Name, 'show_tooltips'))
-
+   local show_tooltips = r.GetExtState(Script_Name, 'show_tooltips')
    if show_tooltips == nil or show_tooltips == "" then
       show_tooltips = true
+   else
+      show_tooltips = stringtoboolean(show_tooltips)
    end
 
 
@@ -1407,7 +1530,10 @@ function buildGui()
    w:attr('minw', math.floor(w_min_w + 1))
 
    local has_w_size_stored = recallWinSize()
-   if not has_w_size_stored then w:resize(math.floor(w_min_w + 1) * 2, 600) end
+
+   if not has_w_size_stored then
+      w:resize(math.floor(w_min_w + 1) * 2, 600)
+   end
 
    local box_outer = w:add(rtk.VBox {})
    local box = rtk.VBox { w = w.w / rtk.scale.value }
@@ -1575,6 +1701,16 @@ function buildGui()
    local obj_number = {}
    local obj_text_box = box:add(rtk.Container { margin = proj_text_box.margin })
 
+   local function scrollToEntry(obj_number)
+      if obj_entry_box[obj_number].calc.y - vp.scroll_top < Toolbar_H * rtk.scale.value then
+         vp:scrollby(0, (Entry_H * rtk.scale.value + obj_entry_box[obj_number].calc.bmargin + 1) * (-1)) -- Don't really know where the +1 comes from
+      end
+
+      if obj_entry_box[obj_number].calc.y + Entry_H * rtk.scale.value - vp.scroll_top > vp.calc.h then
+         vp:scrollby(0, Entry_H * rtk.scale.value + obj_entry_box[obj_number].calc.bmargin + 1) -- Don't really know where the +1 comes from
+      end
+   end
+
    for i = 1, obj_count do
 
       obj_entry_box[i] = box:add(rtk.Container {
@@ -1641,6 +1777,11 @@ function buildGui()
          if obj_data_fields[j] == 'ISRC' then
             obj_entries[i][j]:attr('tooltip', tips.ISRC)
             b_copy_objs[j]:attr('tooltip', tips.COPY_ISRC)
+
+            obj_entries[i][j].onfocus = function()
+               scrollToEntry(i)
+            end
+
             obj_entries[i][j].onchange = function()
                checkIsrc(obj_entries[i][j], false)
             end
@@ -1654,41 +1795,57 @@ function buildGui()
             obj_entries[i][j]:attr('tooltip', tips.PREGAP)
 
             obj_entries[i][j].onclick = function()
+               if obj_entries[i][j].value == '0 seconds' then
+                  obj_entries[i][j]:select_all()
+                  obj_entries[i][j]:focus()
+                  return false
+               end
+
+               local caret_pos = obj_entries[i][j].caret
+               local string_at_caret = obj_entries[i][j].value:sub(caret_pos, caret_pos)
+               if string_at_caret == "" or string_at_caret:find('[^%d%.]') then
+                  local idx = obj_entries[i][j].value:find(" ")
+                  obj_entries[i][j]:attr('caret', idx)
+               end
+            end
+
+            obj_entries[i][j].ondoubleclick = function()
                obj_entries[i][j]:select_all()
+               obj_entries[i][j]:focus()
+               return false
+            end
+
+            obj_entries[i][j].onfocus = function()
+               scrollToEntry(i)
             end
 
             obj_entries[i][j].onchange = function()
-               checkPregap(obj_entries[i][j])
+               checkPregap(obj_entries[i][j], false)
             end
 
             obj_entries[i][j].onblur = function()
-               checkPregap(obj_entries[i][j])
+               checkPregap(obj_entries[i][j], true)
             end
          elseif obj_data_fields[j] == 'PERFORMER' or obj_data_fields[j] == 'SONGWRITER' or
-             obj_data_fields[j] == 'COMPOSER' or
-             obj_data_fields[j] == 'ARRANGER' then
+             obj_data_fields[j] == 'COMPOSER' or obj_data_fields[j] == 'ARRANGER' then
 
             obj_entries[i][j]:attr('tooltip', tips.OBJ_PEOPLE)
+
+            obj_entries[i][j].onfocus = function()
+               scrollToEntry(i)
+            end
 
             obj_entries[i][j].onchange = function()
                checkCdText(obj_entries[i][j])
                checkProjPeople(j)
             end
          else
+            obj_entries[i][j].onfocus = function()
+               scrollToEntry(i)
+            end
+
             obj_entries[i][j].onchange = function()
                checkCdText(obj_entries[i][j])
-            end
-         end
-
-
-
-         obj_entries[i][j].onfocus = function()
-            if obj_entry_box[i].calc.y - vp.scroll_top < Toolbar_H * rtk.scale.value then
-               vp:scrollby(0, (Entry_H * rtk.scale.value + obj_entry_box[i].calc.bmargin + 1) * (-1)) -- Don't really know where the +1 comes from
-            end
-
-            if obj_entry_box[i].calc.y + Entry_H * rtk.scale.value - vp.scroll_top > vp.calc.h then
-               vp:scrollby(0, Entry_H * rtk.scale.value + obj_entry_box[i].calc.bmargin + 1) -- Don't really know where the +1 comes from
             end
          end
 
@@ -1696,23 +1853,25 @@ function buildGui()
             if event.keycode == rtk.keycodes.TAB then
                if event.shift then
                   if i == 1 and j == 1 then
+                     proj_entries[proj_data_fields_count]:select_all()
                      proj_entries[proj_data_fields_count]:focus()
                   elseif i ~= 1 and j == 1 then
+                     obj_entries[i - 1][obj_data_fields_count]:select_all()
                      obj_entries[i - 1][obj_data_fields_count]:focus()
                   else
-                     obj_entries[i][j - 1]:focus()
                      obj_entries[i][j - 1]:select_all()
+                     obj_entries[i][j - 1]:focus()
                   end
                else
                   if i == obj_count and j == obj_data_fields_count then
                      event:set_handled()
                      return
                   elseif i ~= obj_count and j == obj_data_fields_count then
-                     obj_entries[i + 1][1]:focus()
                      obj_entries[i + 1][1]:select_all()
+                     obj_entries[i + 1][1]:focus()
                   else
-                     obj_entries[i][j + 1]:focus()
                      obj_entries[i][j + 1]:select_all()
+                     obj_entries[i][j + 1]:focus()
                   end
                end
 
@@ -1722,19 +1881,19 @@ function buildGui()
             if event.keycode == rtk.keycodes.ENTER then
                if event.shift then
                   if i == 1 then
-                     proj_entries[j]:focus()
                      proj_entries[j]:select_all()
+                     proj_entries[j]:focus()
                   else
-                     obj_entries[i - 1][j]:focus()
                      obj_entries[i - 1][j]:select_all()
+                     obj_entries[i - 1][j]:focus()
                   end
                else
                   if i == obj_count then
-                     proj_entries[j]:focus()
                      proj_entries[j]:select_all()
+                     proj_entries[j]:focus()
                   else
-                     obj_entries[i + 1][j]:focus()
                      obj_entries[i + 1][j]:select_all()
+                     obj_entries[i + 1][j]:focus()
                   end
                end
 
@@ -1752,9 +1911,10 @@ function buildGui()
 
    -- proj_data keypress/focus handlers
    for i = 1, proj_data_fields_count do
-      proj_entries[i].onfocus = function(self, event)
-         if proj_entries[i].calc.y - vp.scroll_top < Toolbar_H *
-             rtk.scale.value then vp:scrollto(0, 0) end
+      proj_entries[i].onfocus = function()
+         if proj_entries[i].calc.y - vp.scroll_top < Toolbar_H * rtk.scale.value then
+            vp:scrollto(0, 0)
+         end
       end
 
       proj_entries[i].onkeypress = function(self, event)
@@ -1764,13 +1924,13 @@ function buildGui()
                   event:set_handled()
                   return
                else
-                  proj_entries[i - 1]:focus()
                   proj_entries[i - 1]:select_all()
+                  proj_entries[i - 1]:focus()
                end
             else
                if i == proj_data_fields_count and obj_count > 0 then
-                  obj_entries[1][1]:focus()
                   obj_entries[1][1]:select_all()
+                  obj_entries[1][1]:focus()
                else
                   proj_entries[i + 1]:focus()
                   proj_entries[i + 1]:select_all()
@@ -1792,8 +1952,8 @@ function buildGui()
                   vp.calc.h)
             else
                if i <= obj_data_fields_count then
-                  obj_entries[1][i]:focus()
                   obj_entries[1][i]:select_all()
+                  obj_entries[1][i]:focus()
                else
                   obj_entries[1][1]:focus()
                   obj_entries[1][1]:select_all()
@@ -1933,14 +2093,6 @@ function buildGui()
       w:close()
       getObjs()
 
-      if stupid_bug_count > 140 then
-         local err_msg = string.format('Something went wrong. Please restart Metadata Manager.\n\nError code: 1-%i',
-            stupid_bug_count)
-         r.MB(err_msg, Script_Name, 0)
-         rtk.quit()
-         return
-      end
-
       buildGui()
       fillEntries(cb_dest_import.value)
    end
@@ -1963,7 +2115,7 @@ function buildGui()
    b_create.onclick = function(self, event)
       if event.shift then
          markers_created = false
-         r.SetProjExtState(0, Script_Name, 'markers_created', 'false')
+         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
          setMarkersCreatedState(false)
          return
       end
@@ -2000,10 +2152,12 @@ function buildGui()
          b_yes.onclick = function()
             popup:close()
             createDataMarkers()
+            getMarkerData()
+            fillEntries()
 
             markers_created = true
-            r.SetProjExtState(0, Script_Name, 'markers_created', 'true')
-            r.SetProjExtState(0, Script_Name, 'dest', dest_menu.selected_id)
+            r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'true')
+            r.SetProjExtState(curr_project, Script_Name, 'dest', dest_menu.selected_id)
 
             setMarkersCreatedState(true)
          end
@@ -2020,10 +2174,12 @@ function buildGui()
          popup:open()
       else
          createDataMarkers()
+         getMarkerData()
+         fillEntries()
 
          markers_created = true
-         r.SetProjExtState(0, Script_Name, 'markers_created', 'true')
-         r.SetProjExtState(0, Script_Name, 'dest', dest_menu.selected_id)
+         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'true')
+         r.SetProjExtState(curr_project, Script_Name, 'dest', dest_menu.selected_id)
 
          setMarkersCreatedState(true)
       end
@@ -2111,18 +2267,12 @@ function buildGui()
 
    b_clear.onclick = function(_, event)
       if event.alt then
+         user_scale:select(1.0)
+         resetUI()
+         w:close()
          clearProjEntries()
          clearObjEntries()
-         local i = 0
-         while true do
-            local retval, key, _ = reaper.EnumProjExtState(0, Script_Name, i)
-
-            if not retval then
-               break
-            else
-               r.SetProjExtState(0, Script_Name, key, "")
-            end
-         end
+         r.SetProjExtState(curr_project, Script_Name, "", "")
          objs = {}
          obj_count = 0
 
@@ -2130,14 +2280,13 @@ function buildGui()
          r.DeleteExtState(Script_Name, "user_scale", true)
          r.DeleteExtState(Script_Name, "show_tooltips", true)
 
-         resetUI()
          rtk.quit()
       end
 
       local shift = event.shift
       local clear_msg = "Are you sure you want to delete selected Data? \nClearing entry fields is not undoable!"
       if shift then
-         clear_msg = "Are you sure you want to reset Metadata Manager to its inital state? \nThis is not undoable!"
+         clear_msg = "Are you sure you want to clear all Entries? \nThis is not undoable!"
       end
       local popupBox = rtk.Container {}
       local popup = rtk.Popup {
@@ -2169,6 +2318,10 @@ function buildGui()
       end
       b_yes.onclick = function()
          popup:close()
+         if shift then
+            clearAllData()
+            return
+         end
          if cb_clear_proj.value then clearProjEntries() end
          if cb_clear_objs.value then clearObjEntries() end
          if cb_clear_markers.value then
@@ -2176,15 +2329,16 @@ function buildGui()
             deleteDataMarkers()
 
             markers_created = false
-            r.SetProjExtState(0, Script_Name, 'markers_created', 'false')
+            r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
             setMarkersCreatedState(false)
          end
-         if shift then clearAllData() end
+
       end
+
       popup.onkeypress = function(self, event)
          if event.keycode == rtk.keycodes.ENTER then
-            b_yes.onclick()
             event:set_handled(self)
+            b_yes.onclick()
          elseif event.keycode == rtk.keycodes.ESCAPE then
             event:set_handled(self)
             popup:close()
@@ -2256,15 +2410,18 @@ function buildGui()
    local w_max_h
    if obj_count ~= 0 then
       w_min_h = obj_heading.calc.y + logo_container.calc.h + menu_box.calc.h
-      w_max_h = obj_entry_box[obj_count].calc.y + menu_box.calc.h
+      --w_max_h = obj_entry_box[obj_count].calc.y + menu_box.calc.h
    else
       w_min_h = obj_heading.calc.y + logo_container.calc.h + menu_box.calc.h * 0.7
-      w_max_h = w_min_h
+      --w_max_h = w_min_h
    end
 
    w:attr('minh', math.floor(w_min_h + 1))
-   w:attr('maxh', w_max_h)
-   if not has_w_size_stored then w:attr('h', w_max_h * rtk.scale.value) end
+   --w:attr('maxh', w_max_h)
+
+   if not has_w_size_stored then
+      w:attr('h', w_min_h)
+   end
 
    ----------------------------------
    ---- RESIZING FUNCTIONS ----------
@@ -2395,6 +2552,7 @@ function buildGui()
       end
    end
 
+
    w.onkeypresspre = function(self, event)
       if event.keycode == rtk.keycodes.UP and event.ctrl and user_scale.selected_index < 7 then
          user_scale:select(user_scale.selected_index + 1)
@@ -2402,6 +2560,9 @@ function buildGui()
       elseif event.keycode == rtk.keycodes.DOWN and event.ctrl and user_scale.selected_index > 1 then
          user_scale:select(user_scale.selected_index - 1)
          event:set_handled()
+      elseif event.keycode == rtk.keycodes.ESCAPE then
+         w:close()
+         rtk.quit()
       end
    end
 end
