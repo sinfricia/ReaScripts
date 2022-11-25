@@ -1,6 +1,6 @@
 -- @description Metadata Manager
 -- @author sinfricia
--- @version 0.9.3
+-- @version 0.9.4
 -- @about
 --  # METADATA MANAGER
 --  This Script provides an easy to use interface to create and manage DDP Metadata markers in Reaper.
@@ -14,45 +14,86 @@
 --  img/logo_what.png
 --  img/logo_thumbnail.png
 -- @changelog
---  - Script now handles switching projects in Reaper
---  - Improved typing in pregap fields
---  - Improved scaling behaviour
---  - Fixed and improved minimum track length check
---  - ESC now quits the script properly when entries are focused
---  - Various bugfixes and enhancements
+--  - Massively improved handling of timeline extension when first pregap marker doesn't fit on timeline
+--  - If timeline has been extended, clearing markers now also clears timeline extension
+--  - fixed window positioning with rtk v1.3
+--  - Internal refactoring and code cleanup
+--  - Various small bugfixes and improvments
+
 
 
 ---- CONFIG STUFF ----
 local Script_Name = 'Metadata Manager'
-local Script_Version = 'v0.9.3'
+local Script_Version = 'v0.9.4'
 local r = reaper
 r.ClearConsole()
-local entrypath = ({ r.get_action_context() })[2]:match('^.+[\\//]')
-package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;',
-   r.GetResourcePath(), entrypath)
 local log
 local rtk
 -- For some reason, if more than ca. 140 objects are loaded over a session of MM being active, rtk decides to crash.
--- To crash more gracefully this variable keeps track of the object count and quits the script when the marker destination is changed and a limit is reached.
+-- To crash more gracefully this variable keeps track of the object count and quits the script when the GUI is rebuilt and a limit is reached.
 local stupid_bug_count = 0
-
-local function msg(msg) r.ShowConsoleMsg(tostring(msg) .. "\n") end
-
 -----------------------
 
+
 ------ UTILITY FUNCTIONS -------
+local function msg(msg) r.ShowConsoleMsg(tostring(msg) .. "\n") end
+
 local function stringtoboolean(string)
    local bool = false
    if string == 'true' then bool = true end
    return bool
 end
 
+local function findLastItemInProj()
+   local item_count = r.CountMediaItems(0)
+   local last_item
+   local last_item_pos = 0
+   local last_item_end = 0
+
+   for i = 1, item_count do
+      local item = r.GetMediaItem(0, i - 1)
+      if item ~= nil then
+         local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+         local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+         local item_end = item_pos + item_len
+         if item_end > last_item_end then
+            last_item = item
+            last_item_pos = item_pos
+            last_item_end = item_end
+         end
+      end
+   end
+
+   return last_item, last_item_pos, last_item_end
+end
+
 function table.contains(table, element)
-   for _, value in pairs(table) do if value == element then return true end end
+   for _, value in pairs(table) do
+      if value == element then
+         return true
+      end
+   end
    return false
 end
 
 ---- USER CONFIGURABLE VARIABLES ----
+local proj_marker_color = r.ColorToNative(0, 0, 0) | 0x1000000
+local obj_marker_color = r.ColorToNative(255, 255, 255) | 0x1000000
+local pregap_marker_color = r.ColorToNative(0, 0, 0) | 0x1000000
+-------------------------------------
+
+
+---- SHARED VARIABLES ----
+-- Used to detect when the user changes project tabs or closes a project
+local curr_project = r.EnumProjects(-1)
+local prev_project_guid = ""
+local project_closed = false
+local entries_filled = false
+
+local marker_dest = 'regions'
+local dest_changed = true
+local markers_created = false
+
 local proj_data_fields = {
    'ALBUM', 'EAN', 'PERFORMER', 'SONGWRITER', 'COMPOSER', 'ARRANGER', 'GENRE',
    'LANGUAGE'
@@ -60,34 +101,6 @@ local proj_data_fields = {
 local obj_data_fields = {
    'TITLE', 'ISRC', 'PERFORMER', 'SONGWRITER', 'COMPOSER', 'ARRANGER', 'PREGAP',
 }
-
-local proj_marker_color = r.ColorToNative(0, 0, 0) | 0x1000000
-local obj_marker_color = r.ColorToNative(255, 255, 255) | 0x1000000
-local pregap_marker_color = r.ColorToNative(0, 0, 0) | 0x1000000
-
--------------------------------------
-
----- SHARED VARIABLES ----
-local curr_project = r.EnumProjects(-1)
-local prev_project_guid = ""
-local project_closed = false
-local entries_filled = false
-
-local retval, proj_marker_dest = r.GetProjExtState(curr_project, Script_Name, 'dest')
-local ext_marker_dest = r.GetExtState(Script_Name, 'dest')
-local marker_dest
-if retval ~= 0 then
-   marker_dest = proj_marker_dest
-elseif r.HasExtState(Script_Name, 'dest') then
-   marker_dest = ext_marker_dest
-else
-   marker_dest = 'regions'
-end
-
-local dest_changed = true
-
-if r.GetProjExtState(curr_project, Script_Name, 'dest') then dest_changed = false end
-
 local proj_data_fields_count = #proj_data_fields
 local obj_data_fields_count = #obj_data_fields
 
@@ -95,16 +108,6 @@ local proj_entries = {}
 local obj_entries = {}
 local objs
 local obj_count = 0
-
-local resize = {}
-
-local proj_text = {}
-local proj_text_w = {}
-local obj_text = {}
-local obj_text_w = {}
-
-local copy_buttons_proj = {}
-local b_copy_objs = {}
 
 local markers
 local regions
@@ -114,14 +117,7 @@ local obj_marker_data
 local pregap_markers_idx
 local obj_marker_idx
 local obj_regions_idx
-local marker_end_pos
-
-local markers_created = false
-if r.GetProjExtState(curr_project, Script_Name, 'markers_created') then
-   _, markers_created =
-   r.GetProjExtState(curr_project, Script_Name, 'markers_created')
-   markers_created = stringtoboolean(markers_created)
-end
+local END_marker_pos
 
 local languages = {
    'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Assamese', 'Azerbaijani', 'Bambora', 'Basque', 'Bengali', 'Bielorussian',
@@ -150,21 +146,6 @@ local entry_ratios = {}
 local Resize_W = 6
 local Toolbar_H = 25
 local Logo_Size = 175
-
-local total_ratio = 0
-for i = 1, proj_data_fields_count do
-
-   entry_ratios[i] = r.GetExtState(Script_Name, 'entry_ratios' .. tostring(i))
-   if type(entry_ratios[i]) == 'number' then
-      total_ratio = total_ratio + entry_ratios[i]
-   end
-end
-
-if math.abs(total_ratio - 1) > 1 * 10 ^ (-10) then
-   for i = 1, proj_data_fields_count do
-      entry_ratios[i] = 1 / proj_data_fields_count
-   end
-end
 
 -- COLORS
 local Lightest_Grey = { 1, 1, 1, 0.1 }
@@ -317,258 +298,6 @@ local tips = {
 
 
 -----------------------------------
-
-function getObjs()
-   objs = {}
-   getMarkerData()
-   local _, ext_obj_count = r.GetProjExtState(curr_project, Script_Name, 'obj_count')
-   ext_obj_count = tonumber(ext_obj_count)
-   if type(ext_obj_count) == 'number' then obj_count = ext_obj_count end
-   local ext_objs = getExtObjs()
-
-   if marker_dest == 'items' then
-
-      if dest_changed then obj_count = r.CountSelectedMediaItems(0) end
-
-      ::restart_loop::
-      for i = 1, obj_count do
-         objs[i] = {}
-
-         local item
-         if dest_changed then
-            item = r.GetSelectedMediaItem(0, i - 1)
-         else
-            item = reaper.BR_GetMediaItemByGUID(0, ext_objs[i])
-         end
-
-         if item then
-            objs[i].name = r.GetTakeName(r.GetTake(item, 0))
-            objs[i].start = r.GetMediaItemInfo_Value(item, "D_POSITION")
-            objs[i].stop = objs[i].start + r.GetMediaItemInfo_Value(item, "D_LENGTH")
-            objs[i].guid = r.BR_GetMediaItemGUID(item)
-         else
-            obj_count = obj_count - 1
-            table.remove(ext_objs, i)
-            goto restart_loop
-         end
-      end
-
-   elseif marker_dest == 'tracks' then
-
-      if dest_changed then obj_count = r.CountSelectedTracks(0) end
-
-      ::restart_loop::
-      for i = 1, obj_count do
-         objs[i] = {}
-
-         local tr
-         if dest_changed then
-            tr = r.GetSelectedTrack(0, i - 1)
-         else
-            tr = reaper.BR_GetMediaTrackByGUID(0, ext_objs[i])
-         end
-
-         if tr then
-            local firstItem = r.GetTrackMediaItem(tr, 0)
-            local lastItem = r.GetTrackMediaItem(tr, r.CountTrackMediaItems(
-               tr) - 1)
-            _, objs[i].name = r.GetTrackName(tr)
-            _, objs[i].guid = r.GetSetMediaTrackInfo_String(tr, 'GUID', "",
-               0)
-            if r.CountTrackMediaItems(tr) ~= 0 then
-               objs[i].start = r.GetMediaItemInfo_Value(firstItem,
-                  "D_POSITION")
-               objs[i].stop = r.GetMediaItemInfo_Value(lastItem, "D_POSITION")
-                   + r.GetMediaItemInfo_Value(lastItem, "D_LENGTH")
-            else
-               objs[i].start = i
-               objs[i].stop = i
-            end
-         else
-            obj_count = obj_count - 1
-            table.remove(ext_objs, i)
-            goto restart_loop
-         end
-      end
-   elseif marker_dest == 'markers' or marker_dest == 'regions' then
-      local source = {}
-      local dest = {}
-      if marker_dest == 'markers' then
-         source = markers
-         dest = obj_marker_idx
-      else
-         source = regions
-         dest = obj_regions_idx
-      end
-
-      obj_count = #dest
-
-      for i = 1, obj_count do
-         local markrgnidx = dest[i]
-         local name = source[markrgnidx].name
-         local pos = source[markrgnidx].pos
-
-         if name:find("TITLE=([^|]*)") then
-            name = name:match("TITLE=([^|]*)")
-         else
-            name = name:gsub("^%#", "")
-         end
-
-         local stop = 0
-         if marker_dest == 'markers' then
-            if i == obj_count then
-               local item_count = r.CountMediaItems(0)
-               local max_item_end = -1
-
-               if item_count == 0 then
-                  stop = r.GetProjectLength(0)
-                  goto skip
-               end
-
-               for j = 1, item_count do
-                  local item = r.GetMediaItem(0, j - 1)
-                  if item ~= nil then
-                     local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
-                     local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
-                     local item_end = item_pos + item_len
-                     if item_end > max_item_end then
-                        max_item_end = item_end
-                     end
-                  end
-               end
-               stop = max_item_end
-
-               ::skip::
-               if stop - pos == 0 then
-                  stop = pos + 4
-               end
-            end
-
-
-            if i ~= 1 then
-               objs[i - 1].stop = pos
-            end
-         elseif marker_dest == 'regions' then
-            stop = source[markrgnidx].stop
-         end
-
-         table.insert(objs, {
-            ['name'] = name,
-            ['start'] = pos,
-            ['stop'] = stop,
-            ['idx'] = markrgnidx
-         })
-
-
-      end
-
-   else
-      error("data_dest undefined while getting objects")
-   end
-
-   if obj_count > 99 then
-      obj_count = 0
-      objs = {}
-      reaper.ShowMessageBox("Metadata Manager only supports up to 99 tracks. Please reduce your track count.",
-         Script_Name, 0)
-      return
-   end
-   if marker_end_pos and obj_count > 1 then
-      objs[obj_count].stop = marker_end_pos
-   end
-   if dest_changed and obj_count < 1 then
-      reaper.ShowMessageBox("No tracks were found. This means you either haven't selected any items/tracks or haven't created any markers/regions with a '#' prefix (depending on your chosen marker destination)."
-         , Script_Name, 0)
-      return false
-   end
-   if marker_dest ~= 'markers' then
-      checkObjOnGrid()
-   end
-
-   checkObjMinLength()
-end
-
-function initObjEntries()
-   for i = 1, obj_count do
-      obj_entries[i] = {}
-      for j = 1, obj_data_fields_count do obj_entries[i][j] = "" end
-   end
-end
-
-function storeExtStateData()
-   for i = 1, proj_data_fields_count do
-      if proj_entries[i].value then
-         r.SetProjExtState(curr_project, Script_Name, proj_data_fields[i],
-            proj_entries[i].value)
-      end
-      r.SetExtState(Script_Name, 'entry_ratios' .. tostring(i),
-         entry_ratios[i], true)
-   end
-
-   for i = 1, obj_count do
-      local obj_marker = "#"
-      for j = 1, obj_data_fields_count do
-         local value = obj_entries[i][j].value
-
-         obj_marker = obj_marker .. obj_data_fields[j] .. '=' ..
-             value .. '|'
-      end
-      r.SetProjExtState(curr_project, Script_Name, 'obj_data' .. i, obj_marker)
-
-      if marker_dest == 'items' or marker_dest == 'tracks' then
-         if objs[i].guid then
-            r.SetProjExtState(curr_project, Script_Name, 'obj_guid' .. i, objs[i].guid)
-         end
-      end
-   end
-
-   if not markers_created then
-      r.SetExtState(Script_Name, 'dest', marker_dest, true)
-   end
-   r.SetProjExtState(curr_project, Script_Name, 'obj_count', obj_count)
-end
-
-function getExtObjs()
-   local _ext_objs = {}
-   for i = 1, obj_count do
-      if marker_dest == 'items' or marker_dest == 'tracks' then
-         _, _ext_objs[i] = r.GetProjExtState(curr_project, Script_Name, 'obj_guid' .. i)
-      end
-   end
-
-   return _ext_objs
-end
-
-function getExtData()
-
-   local _proj_ext_data = {}
-
-   for i = 1, proj_data_fields_count do
-      _, _proj_ext_data[proj_data_fields[i]] =
-      r.GetProjExtState(curr_project, Script_Name, proj_data_fields[i])
-   end
-
-   local _obj_ext_data = {}
-
-   for i = 1, obj_count do
-      _obj_ext_data[i] = {}
-
-      retval, _obj_ext_data[i]['extString'] = r.GetProjExtState(curr_project, Script_Name, 'obj_data' .. i)
-      r.GetProjExtState(curr_project, Script_Name, 'obj_data' .. i)
-
-      if retval ~= 0 then
-         local j = 1
-
-         for match in _obj_ext_data[i]['extString']:gmatch("=([^|]*)") do
-            _obj_ext_data[i][obj_data_fields[j]] = match
-            j = j + 1
-         end
-      end
-   end
-
-   return _proj_ext_data, _obj_ext_data
-end
-
 function getMarkerData()
    markers = {}
    regions = {}
@@ -622,7 +351,7 @@ function getMarkerData()
          table.insert(pregap_markers_idx, idx)
 
       elseif name:find("^=END") then
-         marker_end_pos = pos
+         END_marker_pos = pos
       end
    end
 
@@ -641,10 +370,189 @@ function getMarkerData()
    end
 
 
-   if #obj_marker_idx < 1 and not proj_marker_data.idx then
+   if #obj_marker_idx == 0 and not proj_marker_data.idx then
       markers_created = false
       r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
    end
+end
+
+function getObjs()
+   objs = {}
+
+   if marker_dest == 'items' then
+
+      local ext_obj_count, ext_objs_guids = getExtObjs()
+
+      if dest_changed then
+         obj_count = r.CountSelectedMediaItems(0)
+      else
+         obj_count = ext_obj_count
+      end
+
+      ::restart_loop::
+      for i = 1, obj_count do
+         objs[i] = {}
+
+         local item
+         if dest_changed then
+            item = r.GetSelectedMediaItem(0, i - 1)
+         else
+            item = reaper.BR_GetMediaItemByGUID(0, ext_objs_guids[i])
+         end
+
+         if item then
+            objs[i].name = r.GetTakeName(r.GetTake(item, 0))
+            objs[i].start = r.GetMediaItemInfo_Value(item, "D_POSITION")
+            objs[i].stop = objs[i].start + r.GetMediaItemInfo_Value(item, "D_LENGTH")
+            objs[i].guid = r.BR_GetMediaItemGUID(item)
+         else
+            obj_count = obj_count - 1
+            table.remove(ext_objs_guids, i)
+            goto restart_loop
+         end
+      end
+
+   elseif marker_dest == 'tracks' then
+
+      local ext_obj_count, ext_objs_guids = getExtObjs()
+
+      if dest_changed then
+         obj_count = r.CountSelectedTracks(0)
+      else
+         obj_count = ext_obj_count
+      end
+
+      ::restart_loop::
+      for i = 1, obj_count do
+         objs[i] = {}
+
+         local tr
+         if dest_changed then
+            tr = r.GetSelectedTrack(0, i - 1)
+         else
+            tr = reaper.BR_GetMediaTrackByGUID(0, ext_objs_guids[i])
+         end
+
+         if tr then
+            _, objs[i].name = r.GetTrackName(tr)
+            _, objs[i].guid = r.GetSetMediaTrackInfo_String(tr, 'GUID', "", 0)
+
+            local tr_item_count = r.CountTrackMediaItems(tr)
+            if tr_item_count ~= 0 then
+               local firstItem = r.GetTrackMediaItem(tr, 0)
+               local lastItem = r.GetTrackMediaItem(tr, tr_item_count - 1)
+               objs[i].start = r.GetMediaItemInfo_Value(firstItem, "D_POSITION")
+               objs[i].stop = r.GetMediaItemInfo_Value(lastItem, "D_POSITION") +
+                   r.GetMediaItemInfo_Value(lastItem, "D_LENGTH")
+            elseif i ~= 1 then
+               objs[i].start = objs[i - 1].stop
+               objs[i].stop = objs[i].start + 4
+            elseif i == 1 then
+               objs[i].start = 2
+               objs[i].stop  = objs[i].start + 4
+            end
+         else
+            obj_count = obj_count - 1
+            table.remove(ext_objs_guids, i)
+            goto restart_loop
+         end
+      end
+   elseif marker_dest == 'markers' or marker_dest == 'regions' then
+      local source = {}
+      local dest = {}
+      if marker_dest == 'markers' then
+         source = markers
+         dest = obj_marker_idx
+      else
+         source = regions
+         dest = obj_regions_idx
+      end
+
+      obj_count = #dest
+
+      for i = 1, obj_count do
+         local markrgnidx = dest[i]
+         local name = source[markrgnidx].name
+         local pos = source[markrgnidx].pos
+
+         if name:find("TITLE=([^|]*)") then
+            name = name:match("TITLE=([^|]*)")
+         else
+            name = name:gsub("^%#", "")
+         end
+
+         local stop = 0
+         if marker_dest == 'markers' then
+            -- The end of the last marker obj is set to either the end of the last item in the project or the end of the project
+            if i == obj_count then
+               local last_item, _, last_item_end = findLastItemInProj()
+
+               if last_item then
+                  stop = last_item_end
+               else
+                  stop = r.GetProjectLength(0)
+               end
+
+               if stop - pos == 0 then
+                  stop = pos + 4
+               end
+            elseif i ~= 1 then
+               objs[i - 1].stop = pos
+            end
+         elseif marker_dest == 'regions' then
+            stop = source[markrgnidx].stop
+         end
+
+         table.insert(objs, {
+            ['name'] = name,
+            ['start'] = pos,
+            ['stop'] = stop,
+            ['idx'] = markrgnidx
+         })
+      end
+   end
+
+   if obj_count > 99 then
+      obj_count = 0
+      objs = {}
+      reaper.ShowMessageBox("Metadata Manager only supports up to 99 tracks. Please reduce your track count.",
+         Script_Name, 0)
+      return
+   end
+
+   -- If there is a marker named =END in the project it's position is always used as the end of the project.
+   if END_marker_pos and obj_count > 0 then
+      objs[obj_count].stop = END_marker_pos
+   end
+
+   if dest_changed and obj_count == 0 then
+      reaper.ShowMessageBox("No tracks were found. This means you either haven't selected any items/tracks or haven't created any markers/regions with a '#' prefix (depending on your chosen marker destination)."
+         , Script_Name, 0)
+      return false
+   end
+
+   if marker_dest ~= 'markers' then
+      checkObjOnGrid()
+   end
+
+   checkObjMinLength()
+
+   r.SetProjExtState(curr_project, Script_Name, 'obj_count', obj_count)
+end
+
+function getExtObjs()
+   -- This function is only used when marker_dest == 'items' or 'tracks'
+   local _, ext_obj_count = r.GetProjExtState(curr_project, Script_Name, 'obj_count')
+   ext_obj_count = tonumber(ext_obj_count)
+
+   if type(ext_obj_count) ~= 'number' then return 0 end
+
+   local ext_objs_guids = {}
+   for i = 1, ext_obj_count do
+      _, ext_objs_guids[i] = r.GetProjExtState(curr_project, Script_Name, 'obj_guid' .. i)
+   end
+
+   return ext_obj_count, ext_objs_guids
 end
 
 function checkObjMinLength()
@@ -681,14 +589,138 @@ function checkObjMinLength()
    return r.MB(err_msg, Script_Name, 0)
 end
 
+function storeExtData()
+   for i = 1, proj_data_fields_count do
+      if proj_entries[i].value then
+         r.SetProjExtState(curr_project, Script_Name, proj_data_fields[i], proj_entries[i].value)
+      end
+   end
+
+   for i = 1, obj_count do
+      local obj_marker = "#"
+      for j = 1, obj_data_fields_count do
+         obj_marker = obj_marker .. obj_data_fields[j] .. '=' .. obj_entries[i][j].value .. '|'
+      end
+
+      r.SetProjExtState(curr_project, Script_Name, 'obj_data' .. i, obj_marker)
+
+      if marker_dest == 'items' or marker_dest == 'tracks' then
+         if objs[i].guid then
+            r.SetProjExtState(curr_project, Script_Name, 'obj_guid' .. i, objs[i].guid)
+         end
+      end
+   end
+end
+
+function getExtData()
+
+   local _proj_ext_data = {}
+
+   for i = 1, proj_data_fields_count do
+      _, _proj_ext_data[proj_data_fields[i]] = r.GetProjExtState(curr_project, Script_Name, proj_data_fields[i])
+   end
+
+   local _obj_ext_data = {}
+
+   for i = 1, obj_count do
+      _obj_ext_data[i] = {}
+
+      retval, _obj_ext_data[i]['extString'] = r.GetProjExtState(curr_project, Script_Name, 'obj_data' .. i)
+
+      if retval ~= 0 then
+         local j = 1
+
+         for match in _obj_ext_data[i]['extString']:gmatch("=([^|]*)") do
+            _obj_ext_data[i][obj_data_fields[j]] = match
+            j = j + 1
+         end
+      end
+   end
+
+   return _proj_ext_data, _obj_ext_data
+end
+
+function storeUIConfig()
+   for i = 1, proj_data_fields_count do
+      r.SetExtState(Script_Name, 'entry_ratios' .. tostring(i), entry_ratios[i], true)
+   end
+
+   r.SetExtState(Script_Name, 'wx', w.x, true)
+   r.SetExtState(Script_Name, 'wy', w.y, true)
+
+   r.SetExtState(Script_Name, 'ww', w.w, true)
+   r.SetExtState(Script_Name, 'wh', w.h, true)
+end
+
+function recallUIConfig()
+   local total_ratio = 0
+   for i = 1, proj_data_fields_count do --Recall Entry Ratios
+      entry_ratios[i] = r.GetExtState(Script_Name, 'entry_ratios' .. tostring(i))
+      if type(entry_ratios[i]) == 'number' then
+         total_ratio = total_ratio + entry_ratios[i]
+      end
+   end
+   if math.abs(total_ratio - 1) > 1 * 10 ^ (-10) then
+      for i = 1, proj_data_fields_count do
+         entry_ratios[i] = 1 / proj_data_fields_count
+      end
+   end
+
+
+   if not (r.HasExtState(Script_Name, 'wx') and r.HasExtState(Script_Name, 'wy') and
+       r.HasExtState(Script_Name, 'ww') and r.HasExtState(Script_Name, 'wh')) then
+      return false
+   end
+
+   local wx = r.GetExtState(Script_Name, 'wx')
+   local wy = r.GetExtState(Script_Name, 'wy')
+   local ww = r.GetExtState(Script_Name, 'ww')
+   local wh = r.GetExtState(Script_Name, 'wh')
+
+   if wx == '' or wy == '' or ww == '' or wh == '' then return false end
+
+   ww = tonumber(ww) * scale_change_factor
+   wh = tonumber(wh) * scale_change_factor
+
+   w:attr('x', wx)
+   w:attr('y', wy)
+   w:attr('w', ww)
+   w:attr('h', wh)
+
+   return true
+end
+
+function recallScriptConfig()
+   -- There are two marker destinations stored:
+   -- ProjExtState - The currently active marker destination
+   -- ExtState - The originally selected destination when the user created markers for the first time in a project
+   local retval, proj_marker_dest = r.GetProjExtState(curr_project, Script_Name, 'dest')
+   local ext_marker_dest = r.GetExtState(Script_Name, 'dest')
+   if retval ~= 0 then
+      marker_dest = proj_marker_dest
+   elseif r.HasExtState(Script_Name, 'dest') then
+      marker_dest = ext_marker_dest
+   end
+
+   if r.GetProjExtState(curr_project, Script_Name, 'dest') then
+      dest_changed = false
+   end
+
+   if r.GetProjExtState(curr_project, Script_Name, 'markers_created') then
+      _, markers_created =
+      r.GetProjExtState(curr_project, Script_Name, 'markers_created')
+      markers_created = stringtoboolean(markers_created)
+   end
+end
+
 --------------------------------------------
 
 
 
 
 ------ ENTRY ERROR CHECKING FUNCTIONS -------
-function markEntry(entry, correct)
-   if correct then
+function markEntry(entry, is_correct)
+   if is_correct then
       entry:attr('textcolor', 'white')
       entry:attr('border_focused', rtk.themes.dark.entry_border_focused)
       entry:attr('border_hover', rtk.themes.dark.entry_border_hover)
@@ -920,31 +952,31 @@ function checkGridSettings()
 end
 
 function checkObjOnGrid()
-   local non_grid_tr = {}
+   local tr_off_grid = {}
    for i = 1, obj_count do
       local obj_start = string.format('%.10f', objs[i].start)
       local closest_grid = string.format('%.10f', r.BR_GetClosestGridDivision(objs[i].start))
 
       if obj_start ~= closest_grid then
-         table.insert(non_grid_tr, i)
+         table.insert(tr_off_grid, i)
       end
    end
 
-   if #non_grid_tr == 0 then return end
+   if #tr_off_grid == 0 then return end
 
    local non_grid_tr_string = ""
-   for i = 1, #non_grid_tr do
-      if i == #non_grid_tr then
-         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i])
-      elseif i == #non_grid_tr - 1 then
-         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i]) .. ' and '
+   for i = 1, #tr_off_grid do
+      if i == #tr_off_grid then
+         non_grid_tr_string = non_grid_tr_string .. tostring(tr_off_grid[i])
+      elseif i == #tr_off_grid - 1 then
+         non_grid_tr_string = non_grid_tr_string .. tostring(tr_off_grid[i]) .. ' and '
       else
-         non_grid_tr_string = non_grid_tr_string .. tostring(non_grid_tr[i]) .. ', '
+         non_grid_tr_string = non_grid_tr_string .. tostring(tr_off_grid[i]) .. ', '
       end
    end
 
    local err_msg = ""
-   if #non_grid_tr == 1 then
+   if #tr_off_grid == 1 then
       err_msg = string.format("Track %s doesn't start on a frame boundary at 75 frames/second. This might cause unwanted overlap between tracks when creating markers. Please consider aligning your tracks positions to frames"
          , non_grid_tr_string)
    else
@@ -988,6 +1020,8 @@ function fillEntries(get_dest_name)
 
    for i = 1, proj_data_fields_count do
 
+      -- Data already existing in the project in form of markers has priority
+      -- After that we look at data stored externally
       if proj_marker_data[proj_data_fields[i]] then
          proj_entries[i]:attr('value', proj_marker_data[proj_data_fields[i]])
       elseif proj_ext_data[proj_data_fields[i]] then
@@ -1005,21 +1039,29 @@ function fillEntries(get_dest_name)
 
    for i = 1, obj_count do
       for j = 1, obj_data_fields_count do
+
+         -- Data already existing in the project in form of markers has priority
+         -- After that we look at data stored externally
          if obj_marker_data[i] and obj_marker_data[i][obj_data_fields[j]] then
             obj_entries[i][j]:attr('value', obj_marker_data[i][obj_data_fields[j]])
+
          elseif obj_ext_data[i] and obj_ext_data[i][obj_data_fields[j]] then
             obj_entries[i][j]:attr('value', obj_ext_data[i][obj_data_fields[j]])
+
          else
             obj_entries[i][j]:attr('value', "")
          end
 
-         if obj_data_fields[j] == 'TITLE' and objs[i] and
-             ((dest_changed and obj_entries[i][j].value == "") or get_dest_name) then
+
+         if obj_data_fields[j] == 'TITLE' and ((dest_changed and obj_entries[i][j].value == "") or get_dest_name) then
+            -- If marker_dest ist changed and there are nameless objects we will get the name from the destination even without
+            -- cb_dest_import checked
             obj_entries[i][j]:attr('value', objs[i].name)
+
          elseif obj_data_fields[j] == 'ISRC' then
             checkIsrc(obj_entries[i][j], true)
-         elseif obj_data_fields[j] == 'PREGAP' then
 
+         elseif obj_data_fields[j] == 'PREGAP' then
             if obj_entries[i][j].value == "" then
                if i == 1 then
                   obj_entries[i][j]:attr('value', '2', false)
@@ -1027,15 +1069,11 @@ function fillEntries(get_dest_name)
                   obj_entries[i][j]:attr('value', '0', false)
                end
             end
-
             checkPregap(obj_entries[i][j], true)
-            obj_entries[i][j]:blur()
          end
       end
    end
 
-   dest_changed = false
-   r.SetProjExtState(curr_project, Script_Name, 'dest', marker_dest)
    entries_filled = true
 end
 
@@ -1105,15 +1143,15 @@ function clearAllData()
 
    marker_dest = r.GetExtState(Script_Name, 'dest')
 
-   buildGui()
+   buildUI()
    fillEntries()
 end
 
 function deleteDataMarkers()
    getMarkerData()
    r.Undo_BeginBlock()
+   reaper.PreventUIRefresh(1)
 
-   r.DeleteProjectMarker(0, 0, false)
    if proj_marker_data.idx then
       r.DeleteProjectMarker(0, proj_marker_data.idx, false)
    end
@@ -1127,6 +1165,8 @@ function deleteDataMarkers()
    end
 
    r.SNM_SetDoubleConfigVar('projtimeoffs', 0)
+
+   reaper.PreventUIRefresh(-1)
    r.UpdateArrange()
    r.Undo_EndBlock("Delete all metadata markers", -1)
 end
@@ -1136,7 +1176,8 @@ function createDataMarkers()
    reaper.PreventUIRefresh(1)
    r.Undo_BeginBlock()
 
-   storeExtStateData()
+   storeExtData()
+   getMarkerData()
    getObjs()
 
    deleteDataMarkers()
@@ -1153,8 +1194,8 @@ function createDataMarkers()
 
    if obj_count > 0 then
       proj_marker_pos = getCurrOrPrevGridPos(objs[obj_count].stop)
-   elseif marker_end_pos then
-      proj_marker_pos = getCurrOrPrevGridPos(marker_end_pos)
+   elseif END_marker_pos then
+      proj_marker_pos = getCurrOrPrevGridPos(END_marker_pos)
    else
       proj_marker_pos = getCurrOrPrevGridPos(r.GetProjectLength(0))
    end
@@ -1164,20 +1205,19 @@ function createDataMarkers()
    r.AddProjectMarker2(0, 0, proj_marker_pos, 0, proj_marker, 900, proj_marker_color)
 
    local obj_marker_pos
-   for i = 1, obj_count do
+   local prev_marker_pos = 0
+   local pregaps = {}
+   for i = 1, obj_count do --Create data markers
       local obj_marker = "#"
-      local pregap
 
       for j = 1, obj_data_fields_count do
          if obj_data_fields[j] == 'PREGAP' then
             if obj_entries[i][j].value:match('^%d+%.?%d*') then
-               pregap = obj_entries[i][j].value:match('^%d+%.?%d*')
-            elseif obj_entries[i][j].value:match('^%.%d*') then
-               pregap = obj_entries[i][j].value:match('^%.%d*')
+               pregaps[i] = obj_entries[i][j].value:match('^%d+%.?%d*')
             else
-               pregap = '0'
+               pregaps[i] = '0'
             end
-            pregap = tonumber(pregap)
+            pregaps[i] = tonumber(pregaps[i])
          else
             obj_marker = obj_marker .. obj_data_fields[j] .. '=' ..
                 obj_entries[i][j].value .. '|'
@@ -1191,10 +1231,19 @@ function createDataMarkers()
          marker_pos[obj_marker_pos] = true
       end
 
-      r.AddProjectMarker2(0, 0, obj_marker_pos, 0, obj_marker, i + 100, obj_marker_color)
+      if obj_marker_pos < prev_marker_pos then
+         local err_msg = string.format("Something seems to be wrong with the order of your tracks. Track %i starts before track %i"
+            , i, i - 1)
+         r.MB(err_msg, Script_Name, 0)
+      end
+      prev_marker_pos = obj_marker_pos
 
-      if pregap > 0 then
-         local pregap_pos = getCurrOrPrevGridPos(objs[i].start - pregap)
+      r.AddProjectMarker2(0, 0, obj_marker_pos, 0, obj_marker, i + 100, obj_marker_color)
+   end
+
+   for i = 1, obj_count do --Create pregap markers
+      if pregaps[i] > 0 then
+         local pregap_pos = getCurrOrPrevGridPos(objs[i].start - pregaps[i])
          if marker_pos[pregap_pos] then
             pregap_pos = pregap_pos - 1 / 75
          else
@@ -1202,17 +1251,31 @@ function createDataMarkers()
          end
 
          if i == 1 then
-            if objs[i].start - pregap < 0 then
+            if objs[i].start - pregaps[i] < 0 then
                local start, stop = r.GetSet_LoopTimeRange(false, false, 0, 0, false)
-               r.GetSet_LoopTimeRange(true, false, 0, pregap - objs[1].start, false)
+
+               local timeline_extension = getCurrOrNextGridPos(pregaps[i]) - objs[i].start
+               r.GetSet_LoopTimeRange(true, false, 0, timeline_extension, false)
                r.Main_OnCommand(40200, 0) -- Time selection: Insert empty space at time selection (moving later items)
+
                r.AddProjectMarker2(0, 0, 0, 0, "!", 501, pregap_marker_color)
+
                r.GetSet_LoopTimeRange(true, false, start, stop, false)
+               objs[i].start = getCurrOrNextGridPos(pregaps[i])
+
+               local tempo_marker = reaper.FindTempoTimeSigMarker(0, objs[i].start + 1 / 75)
+               r.DeleteTempoTimeSigMarker(0, tempo_marker)
+
+               local retval, ext_timeline_extension = r.GetProjExtState(curr_project, Script_Name, "timeline_extension")
+               if retval and ext_timeline_extension ~= "" then
+                  timeline_extension = timeline_extension + tonumber(ext_timeline_extension)
+               end
+               r.SetProjExtState(curr_project, Script_Name, 'timeline_extension', timeline_extension)
             else
                r.AddProjectMarker2(0, 0, pregap_pos, 0, "!", 501, pregap_marker_color)
             end
 
-            r.SNM_SetDoubleConfigVar('projtimeoffs', (pregap_pos + pregap) * (-1))
+            r.SNM_SetDoubleConfigVar('projtimeoffs', (objs[1].start) * (-1))
          else
             r.AddProjectMarker2(0, 0, pregap_pos, 0, "!", i + 500, pregap_marker_color)
          end
@@ -1221,63 +1284,6 @@ function createDataMarkers()
 
    r.Undo_EndBlock("Create/update metadata markers", -1)
    reaper.PreventUIRefresh(-1)
-end
-
-function storeWinPos()
-   r.SetExtState(Script_Name, 'wx', w.x, true)
-   r.SetExtState(Script_Name, 'wy', w.y, true)
-end
-
-function storeWinSize()
-   r.SetExtState(Script_Name, 'ww', w.w, true)
-   r.SetExtState(Script_Name, 'wh', w.h, true)
-end
-
-function recallWinPos()
-
-   if not (r.HasExtState(Script_Name, 'wx') and
-       r.HasExtState(Script_Name, 'wy')) then return false end
-
-   local wx = r.GetExtState(Script_Name, 'wx')
-   local wy = r.GetExtState(Script_Name, 'wy')
-
-   if wx == '' or wy == '' then return false end
-
-   w:attr('x', wx)
-   w:attr('y', wy)
-
-   return true
-end
-
-function recallWinSize()
-   if not (r.HasExtState(Script_Name, 'ww') and
-       r.HasExtState(Script_Name, 'wh')) then return false end
-
-   local ww = r.GetExtState(Script_Name, 'ww')
-   local wh = r.GetExtState(Script_Name, 'wh')
-
-   if ww == '' or wh == '' then return false end
-
-   ww = tonumber(ww) * scale_change_factor
-   wh = tonumber(wh) * scale_change_factor
-
-
-   w:attr('w', ww)
-   w:attr('h', wh)
-
-   return true
-end
-
-function getEntryTextWidths()
-   for i = 1, proj_data_fields_count do
-      proj_text_w[i] = proj_text[i].calc.w / rtk.scale.value
-   end
-
-   if obj_count < 1 then return end
-
-   for i = 1, obj_data_fields_count do
-      obj_text_w[i] = obj_text[i].calc.w / rtk.scale.value
-   end
 end
 
 function handleProjectChange()
@@ -1318,7 +1324,23 @@ function handleProjectChange()
    end
 end
 
-function buildGui()
+function resetUI()
+   for i = 1, proj_data_fields_count do
+      entry_ratios[i] = 1 / proj_data_fields_count
+   end
+
+   w:close()
+
+   r.DeleteExtState(Script_Name, 'wx', true)
+   r.DeleteExtState(Script_Name, 'wy', true)
+   r.DeleteExtState(Script_Name, 'wh', true)
+   r.DeleteExtState(Script_Name, 'wh', true)
+
+   buildUI()
+   fillEntries()
+end
+
+function buildUI()
 
    stupid_bug_count = stupid_bug_count + obj_count
    if stupid_bug_count > 140 then
@@ -1329,9 +1351,6 @@ function buildGui()
       return
    end
 
-   ----------------------------------
-   ---- WINDOW  ---------------------
-   ----------------------------------
    w = rtk.Window {
       title = Script_Name,
       resizable = true,
@@ -1339,32 +1358,14 @@ function buildGui()
       border = { { 0, 0, 0, 0.1 }, 1 }
    }
 
-   w.onclose = function()
-      entries_filled = false
-      if not project_closed then
-         storeExtStateData()
-      end
-      storeWinPos()
-      storeWinSize()
-   end
-
-   w.onupdate = function()
-
-      if entries_filled then
-         handleProjectChange()
-      end
-
-   end
-
-   recallWinPos()
-
-
    ----------------------------------
    ---- TOOLBAR ---------------------
    ----------------------------------
    local app = w:add(rtk.Application())
    app.toolbar:attr('h', 25)
    app.toolbar:attr('bborder', { Lightest_Grey, 1 })
+
+
 
    local user_scale = app.toolbar:add(rtk.OptionMenu {
       menu = {
@@ -1384,23 +1385,6 @@ function buildGui()
       color = { 0.2, 0.2, 0.2, 1 },
       gradient = 0.5,
    })
-
-   local function resetUI()
-      for i = 1, proj_data_fields_count do
-         entry_ratios[i] = 1 / proj_data_fields_count
-      end
-
-      w:close()
-
-      r.DeleteExtState(Script_Name, 'wx', true)
-      r.DeleteExtState(Script_Name, 'wy', true)
-      r.DeleteExtState(Script_Name, 'wh', true)
-      r.DeleteExtState(Script_Name, 'wh', true)
-
-      buildGui()
-      fillEntries()
-   end
-
    user_scale.onchange = function()
       scale_change_factor = user_scale.selected_id / rtk.scale.user
       rtk.scale.user = user_scale.selected_id
@@ -1408,12 +1392,12 @@ function buildGui()
 
       w:close()
 
-      buildGui()
+      buildUI()
       fillEntries()
       scale_change_factor = 1
    end
-
    user_scale:select(rtk.scale.user, false)
+
 
    local b_reset_ui = app.toolbar:add(rtk.Button {
       label = 'reset ui',
@@ -1427,13 +1411,13 @@ function buildGui()
    })
    b_reset_ui.onclick = function() resetUI() end
 
+
    local show_tooltips = r.GetExtState(Script_Name, 'show_tooltips')
    if show_tooltips == nil or show_tooltips == "" then
       show_tooltips = true
    else
       show_tooltips = stringtoboolean(show_tooltips)
    end
-
 
    local b_tooltips = app.toolbar:add(rtk.Button {
       label = '?',
@@ -1471,6 +1455,8 @@ function buildGui()
       tooltipsToggle()
    end
 
+
+
    local b_close = app.toolbar:add(rtk.Button {
       'x',
       w = app.toolbar.h - 1,
@@ -1488,13 +1474,12 @@ function buildGui()
    app.statusbar:attr('tborder', { Lightest_Grey, 1 })
    app.statusbar:attr('tpadding', 2)
 
+
    w:open()
 
    ----------------------------------
    ---- THUMBNAIL/WINDOW TITLE-------
    ----------------------------------
-
-
    w:add(rtk.Heading {
       text = 'METADATA MANAGER',
       x = LR_Margin,
@@ -1521,6 +1506,7 @@ function buildGui()
       alpha = 0.7
    })
 
+
    ----------------------------------
    ---- Initializing Stuff ----------
    ----------------------------------
@@ -1529,7 +1515,7 @@ function buildGui()
        rtk.scale.value
    w:attr('minw', math.floor(w_min_w + 1))
 
-   local has_w_size_stored = recallWinSize()
+   local has_w_size_stored = recallUIConfig()
 
    if not has_w_size_stored then
       w:resize(math.floor(w_min_w + 1) * 2, 600)
@@ -1548,9 +1534,9 @@ function buildGui()
    -- Make space for track numbers
    local entries_indent = LR_Margin + 20
    if obj_count > 9 then
-      entries_indent = entries_indent + 10 *
-          (math.ceil(math.log(obj_count + 1, 10)) - 1)
+      entries_indent = entries_indent + 10 * (math.ceil(math.log(obj_count + 1, 10)) - 1)
    end
+
 
    ----------------------------------
    ---- PROJECT SECTION -------------
@@ -1562,19 +1548,22 @@ function buildGui()
       cell = { fillw = true }
    })
 
+   local resize = {}
+
    local proj_text_box = box:add(rtk.Container { margin = { 0, 0, 4, 0 } })
+   local proj_text = {}
    local proj_entry_box = box:add(rtk.Container { margin = { 0, 0, 4, 0 } })
+   local b_copy_proj = {}
 
-   local entry_w = (box.w - entries_indent * 2 - Resize_W *
-       proj_data_fields_count) / proj_data_fields_count
+   local entry_w = (box.w - entries_indent * 2 - Resize_W * proj_data_fields_count) / proj_data_fields_count
 
+   -- First proj entry is created seperatly because it has special coordinates
    resize[0] = proj_entry_box:add(rtk.Spacer {
       x = entries_indent - Resize_W,
       w = Resize_W,
       h = Entry_H,
       bg = Lightest_Grey
    })
-
    proj_entries[1] = proj_entry_box:add(rtk.Entry {
       placeholder = proj_data_fields[1],
       x = entries_indent,
@@ -1582,11 +1571,9 @@ function buildGui()
       h = Entry_H,
       tooltip = tips.PROJ_TITLE,
    })
-
    proj_entries[1].onchange = function()
       checkCdText(proj_entries[1])
    end
-
    proj_text[1] = proj_text_box:add(rtk.Text {
       proj_data_fields[1],
       x = proj_entries[1].x + 2,
@@ -1595,7 +1582,6 @@ function buildGui()
       color = Grey,
       valign = 'center'
    })
-
    resize[1] = proj_entry_box:add(rtk.Spacer {
       x = proj_entries[1].x + proj_entries[1].w,
       w = Resize_W,
@@ -1604,6 +1590,7 @@ function buildGui()
       cursor = rtk.mouse.cursors.SIZE_EW
    })
 
+   -- The rest of the proj entries is created in this loop
    for i = 2, proj_data_fields_count do
 
       local entry_x = resize[i - 1].x + resize[i - 1].w
@@ -1649,7 +1636,7 @@ function buildGui()
       elseif proj_data_fields[i] == 'PERFORMER' or proj_data_fields[i] == 'SONGWRITER' or
           proj_data_fields[i] == 'COMPOSER' or proj_data_fields[i] == 'ARRANGER' then
          proj_entries[i]:attr('tooltip', tips.PROJ_PEOPLE)
-         copy_buttons_proj[i] = proj_text_box:add(rtk.Button {
+         b_copy_proj[i] = proj_text_box:add(rtk.Button {
             label = "copy",
             x = proj_entries[i].x + proj_entries[i].w - 29,
             w = 29,
@@ -1660,7 +1647,7 @@ function buildGui()
             tooltip = tips.COPY
          })
 
-         copy_buttons_proj[i].onclick = function()
+         b_copy_proj[i].onclick = function()
             copyDataToAllEntrys(i, 'project')
          end
 
@@ -1685,10 +1672,10 @@ function buildGui()
       end
    end
 
+
    ----------------------------------
    ---- OBJECTS SECTION -------------
    ----------------------------------
-   initObjEntries()
 
    local obj_heading = box:add(rtk.Heading {
       text = 'TRACK METADATA',
@@ -1697,9 +1684,11 @@ function buildGui()
       cell = { fillw = true }
    })
 
-   local obj_entry_box = {}
-   local obj_number = {}
    local obj_text_box = box:add(rtk.Container { margin = proj_text_box.margin })
+   local obj_text = {}
+   local obj_entry_box = {}
+   local obj_numbers = {}
+   local b_copy_objs = {}
 
    local function scrollToEntry(obj_number)
       if obj_entry_box[obj_number].calc.y - vp.scroll_top < Toolbar_H * rtk.scale.value then
@@ -1712,11 +1701,13 @@ function buildGui()
    end
 
    for i = 1, obj_count do
+      obj_entries[i] = {}
 
       obj_entry_box[i] = box:add(rtk.Container {
          margin = proj_entry_box.margin
       })
-      obj_number[i] = obj_entry_box[i]:add(rtk.Text {
+
+      obj_numbers[i] = obj_entry_box[i]:add(rtk.Text {
          text = tostring(i),
          x = LR_Margin,
          h = Entry_H,
@@ -1909,8 +1900,8 @@ function buildGui()
       end
    end
 
-   -- proj_data keypress/focus handlers
-   for i = 1, proj_data_fields_count do
+
+   for i = 1, proj_data_fields_count do -- proj_entries keypress/focus handlers
       proj_entries[i].onfocus = function()
          if proj_entries[i].calc.y - vp.scroll_top < Toolbar_H * rtk.scale.value then
             vp:scrollto(0, 0)
@@ -1970,50 +1961,6 @@ function buildGui()
       end
    end
 
-
-
-   local function checkTextOverlap()
-      for i = 1, proj_data_fields_count do
-         if proj_text_w[i] > proj_entries[i].w then
-            proj_text[i]:attr('text', proj_text[i].text:sub(1, 3) .. '...')
-            -- proj_text[i]:attr('placeholder', proj_text[i].text:sub(1, 3)..'...')
-         elseif proj_text_w[i] < proj_entries[i].w then
-            proj_text[i]:attr('text', proj_data_fields[i])
-            -- proj_text[i]:attr('placeholder', proj_data_fields[i])
-         end
-
-         if not copy_buttons_proj[i] then goto skip end
-
-         if copy_buttons_proj[i].x < proj_text[i].x + proj_text[i].calc.w /
-             rtk.scale.value then
-            copy_buttons_proj[i]:hide()
-         else
-            copy_buttons_proj[i]:show()
-         end
-
-         ::skip::
-      end
-
-      if obj_count < 1 then return end
-
-      for i = 1, obj_data_fields_count do
-         if (obj_text_w[i] > obj_entries[1][i].w) then
-            obj_text[i]:attr('text', obj_text[i].text:sub(1, 3) .. '...')
-            -- obj_text[i]:attr('placeholder', obj_text[i].text:sub(1, 3)..'...')
-         elseif obj_text_w[i] < proj_entries[i].w then
-            obj_text[i]:attr('text', obj_data_fields[i])
-            -- obj_text[i]:attr('placeholder', obj_data_fields[i])
-         end
-
-         if b_copy_objs[i].x < obj_text[i].x + obj_text[i].calc.w /
-             rtk.scale.value then
-            b_copy_objs[i]:hide()
-         else
-            b_copy_objs[i]:show()
-         end
-      end
-   end
-
    ----------------------------------
    ---- MENU SECTION ----------------
    ----------------------------------
@@ -2027,6 +1974,7 @@ function buildGui()
    })
 
    local m_spacer_front = menu_box:add(rtk.Spacer {}, { expand = true })
+
 
    local m_dest_box = menu_box:add(rtk.VBox {
       spacing = 5,
@@ -2050,14 +1998,14 @@ function buildGui()
 
    local m_spacer_back = menu_box:add(rtk.Spacer { w = 0.5 })
 
-   -- dest
+
+   -- DESTINATION
    local dest_text = m_dest_box:add(rtk.Text {
       text = 'Marker Destination',
       fontscale = 0.9,
       padding = { 0, 0, 5 },
       cell = { halign = 'center' }
    })
-
    local dest_menu = m_dest_box:add(rtk.OptionMenu {
       menu = {
          { 'Items', id = 'items' },
@@ -2073,9 +2021,6 @@ function buildGui()
       tooltip = tips.dest_menu,
       cell = { halign = 'center' }
    })
-
-   dest_menu:select(marker_dest, false)
-
    local cb_dest_import = m_dest_box:add(rtk.CheckBox {
       label = 'Import track names from destination',
       w = 170,
@@ -2091,11 +2036,16 @@ function buildGui()
       dest_changed = true
       marker_dest = dest_menu.selected_id
       w:close()
+      getMarkerData()
       getObjs()
-
-      buildGui()
+      buildUI()
       fillEntries(cb_dest_import.value)
+      r.SetProjExtState(curr_project, Script_Name, 'dest', marker_dest)
+      dest_changed = false
    end
+   dest_menu:select(marker_dest, false)
+
+
 
    -- GENERATE
    m_create_box:add(rtk.Spacer {
@@ -2111,11 +2061,8 @@ function buildGui()
       cell = { halign = 'center' }
    })
 
-
    b_create.onclick = function(self, event)
       if event.shift then
-         markers_created = false
-         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
          setMarkersCreatedState(false)
          return
       end
@@ -2155,8 +2102,6 @@ function buildGui()
             getMarkerData()
             fillEntries()
 
-            markers_created = true
-            r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'true')
             r.SetProjExtState(curr_project, Script_Name, 'dest', dest_menu.selected_id)
 
             setMarkersCreatedState(true)
@@ -2177,8 +2122,6 @@ function buildGui()
          getMarkerData()
          fillEntries()
 
-         markers_created = true
-         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'true')
          r.SetProjExtState(curr_project, Script_Name, 'dest', dest_menu.selected_id)
 
          setMarkersCreatedState(true)
@@ -2187,23 +2130,32 @@ function buildGui()
 
    function setMarkersCreatedState(state)
       if state == false then
+         markers_created = false
+         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
+
          if r.HasExtState(Script_Name, 'dest') and r.GetExtState(Script_Name, 'dest') ~= "" then
             marker_dest = r.GetExtState(Script_Name, 'dest')
          else
-            dest_menu:select('markers', false)
             marker_dest = 'markers'
          end
+
          dest_menu:select(marker_dest, false)
-         dest_text:attr('color', 'White')
          dest_menu:attr('disabled', false)
          cb_dest_import:attr('disabled', false)
 
          b_create:attr('label', 'Create Markers')
 
       elseif state == true then
-         dest_menu:select('markers', false)
+         if markers_created == false then
+            r.SetExtState(Script_Name, 'dest', marker_dest, true)
+         end
+
+         markers_created = true
+         r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'true')
+
          marker_dest = 'markers'
-         dest_text:attr('color', Grey)
+
+         dest_menu:select('markers', false)
          dest_menu:attr('disabled', true)
          cb_dest_import:attr('disabled', true)
 
@@ -2212,6 +2164,7 @@ function buildGui()
    end
 
    if markers_created then setMarkersCreatedState(true) end
+
 
    -- CLEAR
    local b_clear = m_clear_box:add(rtk.Button {
@@ -2222,6 +2175,7 @@ function buildGui()
       tooltip = tips.b_clear,
       cell = { halign = 'center', valign = 'bottom' }
    })
+
    local cb_clear_proj = m_clear_box:add(rtk.CheckBox {
       label = 'Album',
       fontscale = 0.75,
@@ -2237,8 +2191,10 @@ function buildGui()
       fontscale = 0.75,
       spacing = 4
    })
-   if not cb_clear_proj.value and not cb_clear_objs.value and
-       not cb_clear_markers.value then b_clear:attr('disabled', true) end
+
+   if not cb_clear_proj.value and not cb_clear_objs.value and not cb_clear_markers.value then
+      b_clear:attr('disabled', true)
+   end
 
    cb_clear_proj.onchange = function()
       if not cb_clear_proj.value and not cb_clear_objs.value and
@@ -2328,8 +2284,19 @@ function buildGui()
 
             deleteDataMarkers()
 
-            markers_created = false
-            r.SetProjExtState(curr_project, Script_Name, 'markers_created', 'false')
+            local _, timeline_extension = r.GetProjExtState(curr_project, Script_Name, "timeline_extension")
+            if timeline_extension and timeline_extension ~= "" then
+
+               timeline_extension = tonumber(timeline_extension)
+               if objs[1].start < timeline_extension then return end
+               local start, stop = r.GetSet_LoopTimeRange(false, false, 0, 0, false)
+               r.GetSet_LoopTimeRange(true, false, 0, timeline_extension, false)
+               r.Main_OnCommand(40201, 0) --Time selection: Remove contents of time selection (moving later items)
+               r.GetSet_LoopTimeRange(true, false, start - timeline_extension, stop - timeline_extension, false)
+            end
+
+            r.SetProjExtState(curr_project, Script_Name, "timeline_extension", "")
+
             setMarkersCreatedState(false)
          end
 
@@ -2348,13 +2315,16 @@ function buildGui()
       popup:open()
    end
 
+
    w:reflow()
+
    local menu_w = m_clear_box.calc.x + m_clear_box.calc.w - m_dest_box.calc.x +
        entries_indent * rtk.scale.value + 30 * rtk.scale.value
 
    ----------------------------------
    ---- LOGO ------------------------
    ----------------------------------
+
    local logo_container = w:add(rtk.Container {
       z = -1,
       w = Logo_Size,
@@ -2363,13 +2333,77 @@ function buildGui()
       tooltip = tips.logo,
       cell = { halign = 'right', valign = 'bottom' }
    })
-   local logo = logo_container:add(rtk.ImageBox { 'logo' })
+   local logo = logo_container:add(rtk.ImageBox {
+      'logo'
+   })
    local logo_what = logo_container:add(rtk.ImageBox {
       'logo_what',
       visible = false
    })
 
-   function checkLogoOverlap()
+   ----------------------------------
+   ---- Initializing More Stuff -----
+   ----------------------------------
+   w:reflow()
+
+   local proj_text_w = {}
+   local obj_text_w = {}
+
+   local function getEntryTextWidths()
+      for i = 1, proj_data_fields_count do
+         proj_text_w[i] = proj_text[i].calc.w / rtk.scale.value
+      end
+
+      if obj_count < 1 then return end
+
+      for i = 1, obj_data_fields_count do
+         obj_text_w[i] = obj_text[i].calc.w / rtk.scale.value
+      end
+   end
+
+   local function checkTextOverlap()
+      for i = 1, proj_data_fields_count do
+         if proj_text_w[i] > proj_entries[i].w then
+            proj_text[i]:attr('text', proj_text[i].text:sub(1, 3) .. '...')
+            -- proj_text[i]:attr('placeholder', proj_text[i].text:sub(1, 3)..'...')
+         elseif proj_text_w[i] < proj_entries[i].w then
+            proj_text[i]:attr('text', proj_data_fields[i])
+            -- proj_text[i]:attr('placeholder', proj_data_fields[i])
+         end
+
+         if not b_copy_proj[i] then goto skip end
+
+         if b_copy_proj[i].x < proj_text[i].x + proj_text[i].calc.w /
+             rtk.scale.value then
+            b_copy_proj[i]:hide()
+         else
+            b_copy_proj[i]:show()
+         end
+
+         ::skip::
+      end
+
+      if obj_count < 1 then return end
+
+      for i = 1, obj_data_fields_count do
+         if (obj_text_w[i] > obj_entries[1][i].w) then
+            obj_text[i]:attr('text', obj_text[i].text:sub(1, 3) .. '...')
+            -- obj_text[i]:attr('placeholder', obj_text[i].text:sub(1, 3)..'...')
+         elseif obj_text_w[i] < proj_entries[i].w then
+            obj_text[i]:attr('text', obj_data_fields[i])
+            -- obj_text[i]:attr('placeholder', obj_data_fields[i])
+         end
+
+         if b_copy_objs[i].x < obj_text[i].x + obj_text[i].calc.w /
+             rtk.scale.value then
+            b_copy_objs[i]:hide()
+         else
+            b_copy_objs[i]:show()
+         end
+      end
+   end
+
+   local function checkLogoOverlap()
       local obj_end_x = 0
       local obj_end_y = 0
       if obj_count > 1 then
@@ -2398,38 +2432,27 @@ function buildGui()
       end
    end
 
-   ----------------------------------
-   ---- Initializing More Stuff -----
-   ----------------------------------
-   w:reflow()
    getEntryTextWidths()
    checkTextOverlap()
    checkLogoOverlap()
 
-   local w_min_h
-   local w_max_h
-   if obj_count ~= 0 then
-      w_min_h = obj_heading.calc.y + logo_container.calc.h + menu_box.calc.h
-      --w_max_h = obj_entry_box[obj_count].calc.y + menu_box.calc.h
-   else
-      w_min_h = obj_heading.calc.y + logo_container.calc.h + menu_box.calc.h * 0.7
-      --w_max_h = w_min_h
-   end
-
-   w:attr('minh', math.floor(w_min_h + 1))
-   --w:attr('maxh', w_max_h)
-
-   if not has_w_size_stored then
-      w:attr('h', w_min_h)
-   end
 
    ----------------------------------
    ---- RESIZING FUNCTIONS ----------
    ----------------------------------
+
+   local w_min_h = obj_heading.calc.y + logo_container.calc.h + menu_box.calc.h
+   w:attr('minh', math.floor(w_min_h + 1))
+
+   if not has_w_size_stored then
+      w:attr('h', w_min_h)
+      w:move(0, 0)
+   end
+
+
    local min_x = 0
    local max_x = 0
-
-   for i = 1, proj_data_fields_count - 1 do
+   for i = 1, proj_data_fields_count - 1 do --Entry resizing functions
 
       resize[i].ondragstart = function(self, event)
 
@@ -2465,8 +2488,8 @@ function buildGui()
 
          proj_text[i + 1]:attr('x', resize[i].x + Resize_W)
 
-         if copy_buttons_proj[i] then
-            copy_buttons_proj[i]:attr('x', proj_entries[i].x + proj_entries[i].w - 32)
+         if b_copy_proj[i] then
+            b_copy_proj[i]:attr('x', proj_entries[i].x + proj_entries[i].w - 32)
          end
 
          if obj_count < 1 then goto skip end
@@ -2497,6 +2520,7 @@ function buildGui()
          checkLogoOverlap()
       end
    end
+
 
    w.onresize = function(self, last_w)
 
@@ -2529,8 +2553,8 @@ function buildGui()
             local new_w = (proj_entries[i].w + w_change * entry_ratios[i])
             proj_entries[i]:attr('w', new_w)
 
-            if copy_buttons_proj[i] then
-               copy_buttons_proj[i]:attr('x', proj_entries[i].x + proj_entries[i].w - 29)
+            if b_copy_proj[i] then
+               b_copy_proj[i]:attr('x', proj_entries[i].x + proj_entries[i].w - 29)
             end
 
             if obj_count < 1 then goto skip_2 end
@@ -2552,6 +2576,11 @@ function buildGui()
       end
    end
 
+   w.onupdate = function()
+      if entries_filled then
+         handleProjectChange()
+      end
+   end
 
    w.onkeypresspre = function(self, event)
       if event.keycode == rtk.keycodes.UP and event.ctrl and user_scale.selected_index < 7 then
@@ -2565,26 +2594,35 @@ function buildGui()
          rtk.quit()
       end
    end
+
+   w.onclose = function()
+      entries_filled = false
+      if not project_closed then
+         storeExtData()
+      end
+      storeUIConfig()
+   end
 end
 
 function main()
    checkGridSettings()
+   getMarkerData()
    getObjs()
-   buildGui()
+   buildUI()
    fillEntries()
 end
 
 function init()
+   local entrypath = ({ r.get_action_context() })[2]:match('^.+[\\//]')
+   package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;',
+      r.GetResourcePath(), entrypath)
 
-   local has_sws =
-   'Missing. Visit https://www.sws-extension.org/ for installtion instructions.'
+   local has_sws = 'Missing. Visit https://www.sws-extension.org/ for installtion instructions.'
    local has_js = 'Missing. Click OK to open ReaPack.'
    local has_rtk = 'Missing. Click OK to open ReaPack.'
 
-   local has_js_noauto =
-   'Get it from ReaPack or visit https://forum.cockos.com/showthread.php?t=212174 \nfor installation instructions.'
-   local has_rtk_noauto =
-   'Visit https://reapertoolkit.dev for installation instructions.'
+   local has_js_noauto = 'Get it from ReaPack or visit https://forum.cockos.com/showthread.php?t=212174 \nfor installation instructions.'
+   local has_rtk_noauto = 'Visit https://reapertoolkit.dev for installation instructions.'
    local ok
    ok, rtk = pcall(function() return require('rtk') end)
 
@@ -2592,11 +2630,9 @@ function init()
    if r.APIExists('CF_GetSWSVersion') then has_sws = 'Installed.' end
    if r.APIExists('JS_Dialog_BrowseForOpenFiles') then has_js = 'Installed.' end
 
-   if has_sws ~= 'Installed.' or has_js ~= 'Installed.' or has_rtk ~=
-       'Installed.' then
+   if has_sws ~= 'Installed.' or has_js ~= 'Installed.' or has_rtk ~= 'Installed.' then
 
-      local error_msg1 = string.format(
-         "Metadata Manager requires SWS Extension, JS ReaScript API and REAPER Toolkit to run. \n\nSWS Extension:	%s \n\nJS API: 		%s \n\nREAPER Toolkit: 	%s"
+      local error_msg1 = string.format("Metadata Manager requires SWS Extension, JS ReaScript API and REAPER Toolkit to run. \n\nSWS Extension:	%s \n\nJS API: 		%s \n\nREAPER Toolkit: 	%s"
          ,
          has_sws, has_js, has_rtk)
       local response = r.MB(error_msg1, 'Missing Libraries', 1)
@@ -2607,12 +2643,10 @@ function init()
             error_msg2 = error_msg2 .. '\n\nJS API: \n' .. has_js_noauto
          end
          if has_rtk ~= 'Installed.' then
-            error_msg2 = error_msg2 .. '\n\nREAPER Toolkit: \n' ..
-                has_rtk_noauto
+            error_msg2 = error_msg2 .. '\n\nREAPER Toolkit: \n' .. has_rtk_noauto
          end
          return r.MB(error_msg2, 'Thank you and goodbye', 0)
-      elseif response == 1 and has_js == 'Installed.' and has_rtk ==
-          'Installed.' then
+      elseif response == 1 and has_js == 'Installed.' and has_rtk == 'Installed.' then
          return
       end
 
@@ -2627,8 +2661,7 @@ function init()
             error_msg3 = error_msg3 .. '\n\nJS API: \n' .. has_js_noauto
          end
          if has_rtk ~= 'Installed.' then
-            error_msg3 = error_msg3 .. '\n\nREAPER Toolkit: \n' ..
-                has_rtk_noauto
+            error_msg3 = error_msg3 .. '\n\nREAPER Toolkit: \n' .. has_rtk_noauto
          end
          return r.MB(error_msg3, 'Thank you and goodbye', 0)
       end
@@ -2639,8 +2672,7 @@ function init()
             true, 0)
 
          if not ok then
-            return r.MB(
-               'You need to manually add https://reapertoolkit.dev/index.xml to your ReaPack repositories.',
+            return r.MB('You need to manually add https://reapertoolkit.dev/index.xml to your ReaPack repositories.',
                'Missing Libraries', 0)
          else
             r.ReaPack_ProcessQueue(true)
@@ -2678,6 +2710,7 @@ function init()
          tooltip_font = { 'Calibri', 14 }
       })
 
+      recallScriptConfig()
       rtk.call(main)
    end
 end
