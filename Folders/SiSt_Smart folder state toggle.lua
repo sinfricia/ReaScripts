@@ -3,10 +3,6 @@
 -- @version 1.0.0
 -- @about
 --   This script allows you to to open/close a folder while having the parent or any child of it selected.
--- @provides
---  img/logo.png
---  img/logo_what.png
---  img/logo_thumbnail.png
 -- @changelog
 --  Initial release
 
