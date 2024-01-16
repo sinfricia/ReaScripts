@@ -1,11 +1,14 @@
 --[[
  * ReaScript Name: Assign hardware outputs corresponding to inputs for tracks
+ * Description:
  * Author: sinfricia
  * Licence: GPL v3
- * Version: 1.0
+ * Version: 1.1
 --]]
 --[[
  * Changelog:
+ * V1.1 (2024-01-16)
+  + Fixed some bugs related to checking the dependencies
  * v1.0 (2024-01-16)
   + Initial Release
 --]]
@@ -22,6 +25,7 @@ function Msg(input)
    r.ShowConsoleMsg(str .. "\n")
 end
 
+------ CHANGE THESE VALUES TO CHANGE DEFAULT VALUES FOR CREATED HW OUTS ------
 local DEFAULT_OUT_PROPERTIES = {
    B_MUTE = 0,
    B_PHASE = 0,
@@ -37,12 +41,13 @@ local DEFAULT_OUT_PROPERTIES = {
    --P_DESTTRACK,
    --P_ENV,
 }
+--------------------------------------------------------------------------
 
 local ui_elemets_color = { 0.2, 0.2, 0.2, 1 }
 local gui = {}
 
 function Main()
-   CheckDependencies()
+   if not CheckDependencies() then return end
 
    local sel_tr_count = r.CountSelectedTracks(0)
    if sel_tr_count == 0 then
@@ -313,6 +318,10 @@ function CheckDependencies()
          end
          return
       end
+
+      return false
+   else
+      return true
    end
 end
 
