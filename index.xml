@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="bbd751a384aa4028bd2cf162ff1be71a2dab7751">
+<index version="1" name="SiSt Scripts" commit="42d599d6307b66fee51b6afdb83016b059e5628e">
   <category name="Folders">
     <reapack name="SiSt_Create new folder from selected tracks.lua" type="script" desc="Create new folder from selected tracks (respecting existing folders)">
       <metadata>
@@ -175,6 +175,14 @@
         <source main="main" file="SiSt_PL_Toggle listen to playlist.lua">https://github.com/sinfricia/ReaScripts/raw/4007ac335d2a1312f7756abf324c88755690e73f/Playlist%20Folders/SiSt_PL_Toggle%20listen%20to%20playlist.lua</source>
         <source main="main" file="SiSt_PL_Toggle playlist visibility for all tracks.lua">https://github.com/sinfricia/ReaScripts/raw/4007ac335d2a1312f7756abf324c88755690e73f/Playlist%20Folders/SiSt_PL_Toggle%20playlist%20visibility%20for%20all%20tracks.lua</source>
         <source main="main" file="SiSt_PL_Toggle playlist visibility for selected tracks.lua">https://github.com/sinfricia/ReaScripts/raw/4007ac335d2a1312f7756abf324c88755690e73f/Playlist%20Folders/SiSt_PL_Toggle%20playlist%20visibility%20for%20selected%20tracks.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Routing">
+    <reapack name="SiSt_Assign hardware outputs corresponding to inputs for tracks.lua" type="script" desc="Assign hardware outputs corresponding to inputs for tracks">
+      <version name="1.0" author="sinfricia" time="2024-01-16T13:07:01Z">
+        <changelog><![CDATA[+ Initial Release]]></changelog>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/42d599d6307b66fee51b6afdb83016b059e5628e/Routing/SiSt_Assign%20hardware%20outputs%20corresponding%20to%20inputs%20for%20tracks.lua</source>
       </version>
     </reapack>
   </category>
