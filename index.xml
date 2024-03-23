@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="40811eddc5e42b589d460e16c1f9f8f6f48f681b">
+<index version="1" name="SiSt Scripts" commit="3e52585d295e51ec3f31fc382d4747ea1082c632">
   <category name="Folders">
     <reapack name="SiSt_Create new folder from selected tracks.lua" type="script" desc="Create new folder from selected tracks (respecting existing folders)">
       <metadata>
@@ -186,6 +186,12 @@
       </version>
       <version name="1.1" author="sinfricia" time="2024-01-16T13:29:30Z">
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/40811eddc5e42b589d460e16c1f9f8f6f48f681b/Routing/SiSt_Assign%20hardware%20outputs%20corresponding%20to%20inputs%20for%20tracks.lua</source>
+      </version>
+    </reapack>
+    <reapack name="SiSt_Build multichannel routing to individual tracks for selected tracks.lua" type="script" desc="Build multichannel routing to individual tracks for selected tracks">
+      <version name="1.0" author="sinfricia" time="2024-03-23T11:54:07Z">
+        <changelog><![CDATA[+ Initial Release]]></changelog>
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/3e52585d295e51ec3f31fc382d4747ea1082c632/Routing/SiSt_Build%20multichannel%20routing%20to%20individual%20tracks%20for%20selected%20tracks.lua</source>
       </version>
     </reapack>
   </category>
