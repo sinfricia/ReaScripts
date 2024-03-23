@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="SiSt Scripts" commit="42d599d6307b66fee51b6afdb83016b059e5628e">
+<index version="1" name="SiSt Scripts" commit="40811eddc5e42b589d460e16c1f9f8f6f48f681b">
   <category name="Folders">
     <reapack name="SiSt_Create new folder from selected tracks.lua" type="script" desc="Create new folder from selected tracks (respecting existing folders)">
       <metadata>
@@ -183,6 +183,9 @@
       <version name="1.0" author="sinfricia" time="2024-01-16T13:07:01Z">
         <changelog><![CDATA[+ Initial Release]]></changelog>
         <source main="main">https://github.com/sinfricia/ReaScripts/raw/42d599d6307b66fee51b6afdb83016b059e5628e/Routing/SiSt_Assign%20hardware%20outputs%20corresponding%20to%20inputs%20for%20tracks.lua</source>
+      </version>
+      <version name="1.1" author="sinfricia" time="2024-01-16T13:29:30Z">
+        <source main="main">https://github.com/sinfricia/ReaScripts/raw/40811eddc5e42b589d460e16c1f9f8f6f48f681b/Routing/SiSt_Assign%20hardware%20outputs%20corresponding%20to%20inputs%20for%20tracks.lua</source>
       </version>
     </reapack>
   </category>
